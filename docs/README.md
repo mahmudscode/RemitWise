@@ -10,7 +10,7 @@ AI planner for families living on remittance income.
 |---|------|---------|
 | 01 | [01-hackathon-rules-summary.md](01-hackathon-rules-summary.md) | What the organizers require and how we are judged |
 | 02 | [02-idea-framework.md](02-idea-framework.md) | The mandatory 9-step logic chain + problem statement |
-| 03 | [03-users-and-problem.md](03-users-and-problem.md) | Personas, pain points, baseline |
+| 03 | [03-users-and-problem.md](03-users-and-problem.md) | Personas, pain points, baseline | 
 | 04 | [04-product-requirements.md](04-product-requirements.md) | Features, scope (MVP vs stretch), acceptance criteria |
 | 05 | [05-ux-screens-and-flows.md](05-ux-screens-and-flows.md) | Screens and user flows for both sides |
 | 06 | [06-ai-ml-design.md](06-ai-ml-design.md) | Forecasting, allocator, early warning, LLM summaries |
@@ -25,7 +25,6 @@ AI planner for families living on remittance income.
 | 15 | [15-risks-and-judging-map.md](15-risks-and-judging-map.md) | Risks, mitigations, criterion-to-feature map |
 | 16 | [16-post-hackathon-path.md](16-post-hackathon-path.md) | Path to real upay validation and product |
 | 17 | [17-open-questions.md](17-open-questions.md) | Decisions the team must make before building |
-| 18 | [18-tech-stack.md](18-tech-stack.md) | Proposed technology stack and decisions to confirm |
 
 ## One-line pitch
 RemitWise forecasts when the next remittance will arrive, splits each transfer into needs / savings / goals so the family never runs short, warns early about shortfalls, and lets the sender abroad follow shared goals with consent.

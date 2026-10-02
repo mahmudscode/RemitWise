@@ -12,14 +12,14 @@
 7. Platform: web only, or mobile-style web app? (Recommend mobile-style web, two windows for the two sides.)
 8. Which currency/country archetypes for senders (Gulf, Malaysia, etc.)? Keep generic or named?
 9. Allocation defaults: target emergency buffer months (1, 2 or 3)? Default plan option shown first?
-10. Warning threshold: how sensitive (higher recall vs fewer false alarms)?
+10. Warning threshold: how sensitive  (higher recall vs fewer false alarms)?
 11. Include the optional credit-readiness signal? (Recommend: no, unless core is finished.)
 12. Should the sender be able to enter "send intent" to improve forecast? (Recommend: yes, optional.)
 
 ## Technical decisions
 13. Forecaster: gradient-boosted quantile + conformal (recommended) vs probabilistic time-series model.
-14. Storage: **Decided — PostgreSQL.** Run via Docker Compose or local install?
-15. LLM provider: **Decided — Groq.** Which model? Bangla quality acceptable? Fallback strategy if API is unavailable?
+14. Storage: SQLite (simple demo) vs PostgreSQL.
+15. LLM provider and fallback strategy; Bangla quality acceptable?
 16. Compliance assumptions to present in the with/without experiment (e.g., 60/80/100%).
 17. Dataset size and time horizon (default 300 households × 24 months).
 

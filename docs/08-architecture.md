@@ -6,14 +6,14 @@ Synthetic data → feature/context layer → ML/AI engine → explanation/recomm
 ## Layers
 | Layer | Responsibility | Candidate tech (any reasonable stack allowed) |
 |---|---|---|
-| Data | Synthetic generation, storage, feature prep | Python, Pandas, PostgreSQL |
+| Data | Synthetic generation, storage, feature prep | Python, Pandas, PostgreSQL or SQLite |
 | ML | Forecaster, shortfall risk model | scikit-learn, LightGBM |
 | Rules/Optimizer | Allocation, thresholds, consent rules | Plain Python module, kept separate from ML |
-| GenAI | Grounded explanations | Groq LLM API with structured input + number check |
+| GenAI | Grounded explanations | LLM API with structured input + number check |
 | API | Expose capabilities as services | FastAPI |
 | Frontend | Family app, sender app, demo control panel | React / Next.js |
 | Monitoring | Prediction logs, metrics, calibration views | Simple logs + metrics page |
-
+ 
 ## Components
 1. **Data Simulator** — generates households and events; writes to store.
 2. **Feature Builder** — turns history into model inputs; separate from inference.
