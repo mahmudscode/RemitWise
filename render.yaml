@@ -14,3 +14,13 @@ services:
         sync: false        # optional
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: ADMIN_EMAIL
+        sync: false        # provisions a real admin account (optional)
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SEED_DEMO_ACCOUNTS
+        value: "true"      # set "false" outside a hackathon demo
+      - key: DEMO_PASSWORD
+        sync: false        # password for the demo accounts
+      - key: DATABASE_URL
+        sync: false        # PostgreSQL URL: keeps accounts and data across redeploys

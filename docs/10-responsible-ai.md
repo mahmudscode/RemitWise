@@ -18,6 +18,10 @@ Maps to the guideline's minimums (worth 5% of score, but also a trust story for 
 - **No manipulation:** no urgency language, no spend nudges, no hidden fees, no product pushing.
 - **Informed choice:** show alternatives and trade-offs; family can ignore recommendations.
 
+## Accounts and access
+- Real sign-in (salted password hashes, hashed session tokens, rate limiting). Roles are decided on the server from the token.
+- Families see only their own household; senders only what the family shares; admins only aggregates and the seeded demo households. See doc 21.
+
 ## Auto-pay safeguards (bills and EMI)
 - Auto-pay applies only to mandates the family created and switched on; each has a monthly limit and an optional "confirm over limit" rule.
 - Unusual bills (more than 1.8x the estimate) are **never paid automatically**; they wait for Approve / Dispute / Pay manually.

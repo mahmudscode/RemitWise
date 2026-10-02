@@ -1,77 +1,79 @@
 import { useEffect, useState } from 'react'
-import { Area, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, fmtDate, taka } from './api'
-import { AI } from './ui'
+import { AI, CAT, Projection } from './ui'
 
-const CAT_COLOR = { food: '#1f7a5a', transport: '#3b6fd4', education: '#d08a1e', health: '#c2503a', other: '#8a8fa0', bills: '#6b4fbb' }
-
-export default function Plan({ hid, tick, H, act }) {
+export default function Plan({ hid, state, tick, H, act, person }) {
   const [pj, setPj] = useState(null)
   const [cats, setCats] = useState(null)
   const [opts, setOpts] = useState([])
+  const [bills, setBills] = useState([])
+  const [fc, setFc] = useState(null)
+  const [pick, setPick] = useState(null)
   const [note, setNote] = useState('')
 
   useEffect(() => {
     api(`/households/${hid}/plan/projection`, H).then(setPj).catch(() => setPj(null))
     api(`/households/${hid}/plan/categories`, H).then(setCats).catch(() => setCats(null))
-    api(`/households/${hid}/plan/options`, H).then((r) => setOpts(r.options)).catch(() => setOpts([]))
+    api(`/households/${hid}/plan/options`, H).then((r) => { setOpts(r.options); setPick(r.options[0]?.id || null) }).catch(() => setOpts([]))
+    api(`/households/${hid}/bills`, H).then((r) => setBills(r.items)).catch(() => {})
+    api(`/households/${hid}/forecast`, H).then(setFc).catch(() => setFc(null))
     // eslint-disable-next-line
   }, [hid, tick])
 
-  const rows = pj ? pj.days.map((d, i) => ({ date: pj.dates[i], band: [pj.p10[i], pj.p90[i]], pos: pj.p50[i] >= 0 ? pj.p50[i] : null, neg: pj.p50[i] < 0 ? pj.p50[i] : null, p50: pj.p50[i] })) : []
-  const dateAt = (off) => pj.dates[Math.min(Math.max(Math.round(off) - 1, 0), pj.dates.length - 1)]
+  const total = (cats?.items || []).reduce((a, c) => a + c.amount, 0) || 1
+  const f = fc?.forecast
+  const coming = bills.filter((b) => ['scheduled', 'at_risk', 'needs_review'].includes(b.display_status) && f && b.due_day <= state.day + f.rem_p90)
+  const apply = () => {
+    const o = opts.find((x) => x.id === pick)
+    if (!o) return
+    if (!o.actionable) { setNote(`Good choice: aim to spend about ${taka(o.amount)} less per day until the transfer arrives. We will keep watching.`); return }
+    act(async () => { await api(`/households/${hid}/plan/options/apply`, { ...H, method: 'POST', body: { option: o.id } }); setNote(o.id === 'ask_sender' ? `${person?.sender_name} has been asked. It is their decision.` : 'Moved. You can top the goals up later.') }).catch(() => {})
+  }
 
   return (
     <div className="stackv">
-      <section className="card">
-        <div className="row between"><h2>Cash flow until the next transfer</h2><AI why={<div><p>We simulate hundreds of possible futures for your daily spending and show the middle path and a shaded range (10th to 90th percentile). Bills and EMIs are paid from your bill vault first, and appear as markers.</p><p className="small muted">Where the line dips below zero it turns red: that is when you could run short.</p></div>} /></div>
-        {pj ? (<>
-          <div style={{ height: 230 }}>
-            <ResponsiveContainer>
-              <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                <XAxis dataKey="date" tickFormatter={fmtDate} fontSize={11} minTickGap={28} />
-                <YAxis fontSize={11} width={44} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-                <Tooltip formatter={(v) => (Array.isArray(v) ? `${taka(v[0])} to ${taka(v[1])}` : taka(v))} labelFormatter={fmtDate} />
-                <ReferenceArea x1={dateAt(pj.next_p10)} x2={dateAt(pj.next_p90)} fill="var(--accent-soft)" fillOpacity={0.7} label={{ value: 'transfer likely', fontSize: 10, position: 'insideTop' }} />
-                <ReferenceLine y={0} stroke="var(--red)" strokeDasharray="4 3" />
-                <Area isAnimationActive={false} dataKey="band" name="Likely range" stroke="none" fill="var(--accent)" fillOpacity={0.18} />
-                <Line isAnimationActive={false} dataKey="pos" name="Most likely" stroke="var(--accent)" dot={false} strokeWidth={2} connectNulls={false} />
-                <Line isAnimationActive={false} dataKey="neg" name="Below zero" stroke="var(--red)" dot={false} strokeWidth={2.5} connectNulls={false} />
-                {pj.bills.map((b, i) => <ReferenceDot key={i} x={pj.dates[b.day - 1]} y={pj.p50[b.day - 1]} r={4} fill="#6b4fbb" stroke="none" />)}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <p className="small muted"><i className="dot" style={{ background: '#6b4fbb' }} /> bill or EMI · shaded column: when the next transfer is likely. {pj.goes_negative ? '⚠️ The middle path goes below zero.' : 'The middle path stays above zero.'}</p>
-        </>) : <p className="muted">Available once a forecast exists.</p>}
-      </section>
+      <div className="pagehead"><div><h1>Plan</h1><p>Cash flow until your next transfer</p></div></div>
+      <div className="grid2" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
+        <section className="card">
+          <div className="row between"><h2>Projected balance</h2><AI label="AI forecast" why={<div><p>We simulate hundreds of possible futures for your daily spending and show the middle path with a shaded range (10th to 90th percentile). Bills and EMIs are paid from your bill vault first and appear as dots.</p><p className="small muted">Where the line dips below zero it turns red: that is when you could run short.</p></div>} /></div>
+          <Projection pj={pj} height={250} />
+        </section>
+        {opts.length > 0 ? (
+          <section className="card amber" style={{ alignSelf: 'start' }}>
+            <h2>Choose how to avoid the shortfall</h2>
+            <p className="small muted" style={{ margin: '4px 0 8px' }}>The AI found {opts.length} way{opts.length > 1 ? 's' : ''} to stay above zero. You decide.</p>
+            {opts.map((o) => <button key={o.id} className={`opt ${pick === o.id ? 'on' : ''}`} onClick={() => setPick(o.id)}><span className="rad" />{o.title}</button>)}
+            <button className="btn amber block" onClick={apply}>Apply choice</button>
+            {note && <p className="small" style={{ marginTop: 8 }}>{note}</p>}
+          </section>
+        ) : (
+          <section className="card green" style={{ alignSelf: 'start' }}><h2>You are on track</h2><p className="small muted" style={{ marginTop: 4 }}>No shortfall is expected if your next transfer arrives on time. We will tell you early if that changes.</p></section>
+        )}
+      </div>
 
-      {opts.length > 0 && (
-        <section className="card flag">
-          <h2>Ways to avoid running short</h2>
-          <p className="small muted">You choose. Nothing happens unless you press a button.</p>
-          {opts.map((o) => (
-            <div className="opt2" key={o.id}>
-              <div><b>{o.title}</b><small>{o.detail}</small></div>
-              {o.actionable && <button className="primary" onClick={() => act(async () => { await api(`/households/${hid}/plan/options/apply`, { ...H, method: 'POST', body: { option: o.id } }); setNote(o.id === 'ask_sender' ? 'Your sender has been asked.' : 'Moved. You can top the goals up later.') })}>Do this</button>}
+      <div className="grid2e" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
+        <section className="card">
+          <div className="row between"><h2>Spending this month</h2><AI label="Simulated" title="About these categories" why={<p>Categories are simulated shares of each household's spending (an assumption), plus the bills you actually paid in the last 30 days.</p>} /></div>
+          {(cats?.items || []).map((c) => (
+            <div className="barrow" key={c.category}>
+              <div className="row between"><span>{CAT[c.category]?.[0] || c.category}</span><span className="muted">{Math.round((c.amount / total) * 100)}%</span></div>
+              <div className="hbar"><div style={{ width: `${(c.amount / total) * 100}%`, background: CAT[c.category]?.[1] }} /></div>
             </div>
           ))}
-          {note && <p className="small">{note}</p>}
+          <p className="tiny muted">Last 30 days.</p>
         </section>
-      )}
-
-      <section className="card">
-        <div className="row between"><h2>Spending by category</h2><AI label="Simulated" title="About these categories" why={<p>Categories are simulated shares of each household's spending (an assumption), plus the bills you actually paid in the last 30 days.</p>} /></div>
-        {cats?.items?.length ? (
-          <div className="row" style={{ alignItems: 'center' }}>
-            <div style={{ width: 150, height: 150 }}>
-              <ResponsiveContainer><PieChart><Pie isAnimationActive={false} data={cats.items} dataKey="amount" nameKey="category" innerRadius={38} outerRadius={64} paddingAngle={2}>{cats.items.map((c) => <Cell key={c.category} fill={CAT_COLOR[c.category]} />)}</Pie><Tooltip formatter={(v) => taka(v)} /></PieChart></ResponsiveContainer>
+        <section className="card" style={{ alignSelf: 'start' }}>
+          <h2 style={{ marginBottom: 8 }}>Coming up before next transfer</h2>
+          {coming.map((b) => (
+            <div className="row between" key={b.key} style={{ padding: '5px 0', fontSize: 14 }}>
+              <span><small className="muted">{fmtDate(b.due_date)}</small>&nbsp; {b.name}{b.variable && b.amount == null ? ' (estimate)' : ''}</span>
+              <b className={b.display_status === 'at_risk' ? 'txt-amber' : ''}>– {taka(b.amount ?? b.expected)}</b>
             </div>
-            <ul className="legend">{cats.items.map((c) => <li key={c.category}><i className="dot" style={{ background: CAT_COLOR[c.category] }} />{c.category} <b>{taka(c.amount)}</b></li>)}</ul>
-          </div>
-        ) : <p className="muted">–</p>}
-        <p className="small muted">Last 30 days.</p>
-      </section>
+          ))}
+          {f && <div className="row between" style={{ padding: '5px 0', fontSize: 14 }}><span><small className="muted">{fmtDate(f.next_date_p10)}–{fmtDate(f.next_date_p90)}</small>&nbsp; Remittance from {person?.sender_name}</span><b className="txt-green">+ {taka(f.amt_p10)}–{taka(f.amt_p90)}</b></div>}
+          {!coming.length && !f && <p className="muted small">Nothing coming up.</p>}
+        </section>
+      </div>
     </div>
   )
 }

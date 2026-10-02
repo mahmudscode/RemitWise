@@ -10,6 +10,8 @@ Vercel hosts the **frontend only**. The Python backend (LightGBM, pandas, scikit
   - `DATABASE_URL` (optional) = a PostgreSQL URL like `postgresql+psycopg://user:pass@host:5432/db`. If set, data is loaded into Postgres on start (about 25 s). If not set, the image uses the SQLite file built during `docker build`; demo state then resets on restart.
 - Health check path: `/api/health`.
 
+- **Accounts:** for anything beyond a demo set `SEED_DEMO_ACCOUNTS=false` and provision an admin with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. Accounts and user data persist only if `DATABASE_URL` points to PostgreSQL; with the default SQLite they reset on every redeploy. See doc 21.
+
 ## 2. Frontend (Vercel)
 - Project **Root Directory: `frontend`** (not the repo root).
 - Framework preset: Vite. Build command `npm run build`, output `dist`.

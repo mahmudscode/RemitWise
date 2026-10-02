@@ -36,14 +36,68 @@ class Engine:
         self.ff = {k: {int(r["seq"]): r for r in v.to_dict("records")} for k, v in ff.groupby("household_id")}
         self.model = forecast.Forecaster.load()
         self._start = {}
+        self._senders = ["Rahim", "Karim", "Jamal"]
         self.demo_ids = self._pick_demo()
-        ids = ",".join(f"'{i}'" for i in self.demo_ids)
-        led = db.read_sql(f"SELECT * FROM ledger WHERE household_id IN ({ids})")
-        self.led = {k: v.sort_values("day").reset_index(drop=True) for k, v in led.groupby("household_id")}
-        self.bdefs = {k: v.reset_index(drop=True) for k, v in
-                      db.read_sql(f"SELECT * FROM bill_defs WHERE household_id IN ({ids})").groupby("household_id")}
-        self.bsched = {k: v.sort_values("due_day").reset_index(drop=True) for k, v in
-                       db.read_sql(f"SELECT * FROM bill_schedule WHERE household_id IN ({ids})").groupby("household_id")}
+        self.bdefs, self.bsched, self._bhist, self._loaded = {}, {}, {}, set()
+
+    def ensure(self, hid: str):
+        """Load one household's ledger and bills on first use (any registered family, not just the demos)."""
+        if hid in self._loaded:
+            return
+        led = db.read_sql("SELECT * FROM ledger WHERE household_id = :h", h=hid)
+        self.led[hid] = led.sort_values("day").reset_index(drop=True)
+        self.bdefs[hid] = db.read_sql("SELECT * FROM bill_defs WHERE household_id = :h", h=hid).reset_index(drop=True)
+        sc = db.read_sql("SELECT * FROM bill_schedule WHERE household_id = :h", h=hid).sort_values("due_day").reset_index(drop=True)
+        self.bsched[hid] = sc
+        for bid, g in sc.groupby("bill_id"):
+            g = g.sort_values("due_day")
+            self._bhist[bid] = (g.due_day.to_numpy(), g.amount.to_numpy(), g.anomaly.to_numpy().astype(bool))
+        self._loaded.add(hid)
+
+    def default_sender_name(self, hid: str) -> str:
+        ids = list(self.demo_ids)
+        return self._senders[ids.index(hid) % 3] if hid in ids else "your sender"
+
+    def sender_name(self, hid: str) -> str:
+        """The first registered sender's first name, else a default."""
+        with SessionLocal() as s:
+            u = s.query(db.User).filter(db.User.household_id == hid, db.User.role == "sender").order_by(db.User.id).first()
+            if u:
+                return u.name.split()[0]
+        return self.default_sender_name(hid)
+
+    def profile(self, hid: str) -> dict:
+        """Display profile for a household: family name, sender name and city."""
+        cities = {"gulf": "Dubai", "malaysia": "Kuala Lumpur", "other": "abroad"}
+        with SessionLocal() as s:
+            fam = s.query(db.User).filter(db.User.household_id == hid, db.User.role == "family").order_by(db.User.id).first()
+        row = self.h.loc[hid]
+        name = fam.name.split()[0] if fam else self.demo_ids.get(hid, "Family")
+        city = (fam.sender_city if fam and fam.sender_city else cities.get(row["sender_origin"], "abroad"))
+        return dict(household_id=hid, name=name, regularity_class=row["regularity_class"], region=row["region"],
+                    size=int(row["size"]), sender_id=f"S-{hid}", sender_name=self.sender_name(hid), sender_city=city,
+                    is_demo=hid in self.demo_ids)
+
+    def eligible(self, taken: set) -> list:
+        """Unclaimed synthetic households a new family account can be given (test split first, enough history)."""
+        out = []
+        for hid in self.h[self.h.split == "test"].index:
+            if hid in self.demo_ids or hid in taken:
+                continue
+            if len(self.ev.get(hid, [])) >= 18 and len(self.fc.get(hid, {})) >= 8:
+                out.append(hid)
+        return out
+
+    def usual_range(self, bid: str, due: int):
+        """Min and max of the last 6 normal (non-anomalous) amounts of this bill before `due`."""
+        h = self._bhist.get(bid)
+        if h is None:
+            return None, None
+        days, amts, anom = h
+        sel = amts[(days < due) & ~anom][-6:]
+        if len(sel) < 2:
+            return None, None
+        return round(float(sel.min()), -1), round(float(sel.max()), -1)
 
     def start_seq(self, hid: str) -> int:
         """First arrival (seq >= 3) that is a normal-sized transfer, so the demo starts on a main remittance."""
@@ -88,6 +142,7 @@ class Engine:
         return st
 
     def get(self, hid: str) -> dict:
+        self.ensure(hid)
         with SessionLocal() as s:
             row = s.get(DemoState, hid)
             if row:
@@ -180,10 +235,13 @@ class Engine:
             rec = st["bills"].get(key, {})
             billed = st["day"] >= due - BILLED_DAYS_BEFORE or key in st["bill_override"] or bool(rec)
             flagged = bool(billed and billslib.is_anomalous(amt, exp))
+            lo, hi = self.usual_range(bid, due)
             out.append(dict(key=key, bill_id=bid, name=df["name"], kind=df["kind"], due_day=due, due_date=_d(due),
+                            usual_low=lo, usual_high=hi,
                             variable=df["variable"], expected=round(exp), amount=round(amt) if billed else None,
                             true_amount=amt, billed=billed, flagged=flagged, status=rec.get("status"),
-                            paid_via=rec.get("via"), paid_day=rec.get("day")))
+                            paid_via=rec.get("via"), paid_day=rec.get("day"),
+                            paid_date=_d(rec["day"]) if rec.get("day") is not None else None))
         out.sort(key=lambda x: (x["due_day"], x["name"]))
         return out
 
@@ -487,8 +545,15 @@ class Engine:
             out.append(dict(id="move_from_goals", title=f"Move ৳{round(move):,} from goal savings",
                             detail="Your goals stay yours; you can top them up from the next transfer.",
                             amount=round(move), actionable=True))
-        out.append(dict(id="ask_sender", title="Ask your sender for an earlier transfer",
-                        detail="We will show your sender a gentle note. They decide.", amount=0, actionable=True))
+        send_by = None
+        for c in self.bill_cards(hid, st, 45, 0):
+            if c["display_status"] == "at_risk":
+                send_by = _d(c["due_day"] - 1)
+                break
+        who = self.sender_name(hid)
+        title = f"Ask {who} to send by {pd.Timestamp(send_by).strftime('%-d %b')}" if send_by else f"Ask {who} for an earlier transfer"
+        out.append(dict(id="ask_sender", title=title, detail=f"We will show {who} a gentle note. They decide.",
+                        amount=0, actionable=True, send_by=send_by))
         return out
 
     def apply_option(self, hid: str, st: dict, option: str, thr: float) -> dict:
@@ -584,21 +649,59 @@ class Engine:
         return st
 
     def goal_pace(self, hid: str, st: dict, g: allocator.Goal) -> dict:
-        """Months to reach a goal at the recent contribution pace (an estimate, not a promise)."""
+        """Pace of a goal: months to reach it at the recent contribution pace (an estimate, not a promise)."""
         rows = st["contrib"].get(g.id, [])[-3:]
         remaining = max(g.target - g.current, 0.0)
+        months_left = max(g.days_left / 30.0, 0.5)
+        required = remaining / months_left
+        target_date = _d(st["day"] + g.days_left)
+        base = dict(required_per_month=round(required), target_date=target_date)
         if remaining <= 0:
-            return dict(months=0.0, text="Goal reached")
+            return dict(base, months=0.0, per_month=0, on_track=True, catch_up=0, text="Goal reached")
         if not rows:
-            return dict(months=None, text="Accept a plan to see a pace estimate")
+            return dict(base, months=None, per_month=None, on_track=None, catch_up=None,
+                        text="Accept a plan to see a pace estimate")
         per_transfer = float(np.mean([r["amount"] for r in rows]))
         f = self.current_forecast(hid, st)
         gap = f["gap_p50"] if f else float(self.h.loc[hid, "gap_mean"])
         per_month = per_transfer * 30.0 / max(gap, 7.0)
         if per_month <= 0:
-            return dict(months=None, text="No contributions yet")
+            return dict(base, months=None, per_month=0, on_track=None, catch_up=None, text="No contributions yet")
         months = remaining / per_month
-        return dict(months=round(months, 1), text=f"At your current pace, about {round(months)} months")
+        on_track = per_month >= 0.95 * required
+        catch_up = 0 if on_track else round(required - per_month, -1)
+        return dict(base, months=round(months, 1), per_month=round(per_month), on_track=bool(on_track),
+                    catch_up=catch_up, text=f"At your current pace, about {round(months)} months")
+
+    def add_money(self, hid: str, st: dict, gid: str, amount: float) -> dict:
+        goals = {g.id: g for g in self.goals_list(hid, st)}
+        if gid not in goals:
+            raise ValueError("unknown goal")
+        if amount <= 0 or amount > st["spendable"]:
+            raise ValueError("not enough spendable money for that amount")
+        st["spendable"] -= amount
+        st["goals"][gid] = st["goals"].get(gid, 0.0) + amount
+        st["contrib"].setdefault(gid, []).append(dict(day=st["day"], amount=round(amount)))
+        return st
+
+    def bill_history(self, hid: str, st: dict) -> dict | None:
+        """Last 6 billed amounts of the main variable bill and the estimate for the next one."""
+        defs = self.bdefs[hid]
+        var = defs[defs["variable"].astype(bool)]
+        if var.empty:
+            return None
+        bid = var.iloc[0].bill_id
+        name = var.iloc[0]["name"]
+        sc = self.bsched[hid]
+        sc = sc[sc.bill_id == bid]
+        past = sc[sc.due_day <= st["day"]].tail(6)
+        nxt = sc[sc.due_day > st["day"]].head(1)
+        pts = [dict(label=pd.Timestamp(_d(r.due_day)).strftime("%b"), amount=round(float(r.amount)), estimate=False)
+               for r in past.itertuples()]
+        if len(nxt):
+            r = nxt.iloc[0]
+            pts.append(dict(label=pd.Timestamp(_d(int(r.due_day))).strftime("%b"), amount=round(float(r.expected)), estimate=True))
+        return dict(name=name, points=pts)
 
     # ---------- time ----------
     def advance(self, hid: str, st: dict, days: int, to_arrival: bool = False) -> dict:
@@ -698,17 +801,33 @@ class Engine:
 
     def sender_view(self, hid: str, st: dict) -> dict:
         """Coarse signals for the sender (no balances, no transactions)."""
-        cards = [c for c in self.bill_cards(hid, st, 45, 0) if c["autopay"] or True]
+        cards = self.bill_cards(hid, st, 45, 35)
         month_end = st["day"] + 30
-        due = [c for c in cards if c["due_day"] <= month_end]
-        risky = [c for c in due if c["display_status"] in ("at_risk", "needs_review", "overdue")]
+        due = [c for c in cards if c["due_day"] <= month_end and c["due_day"] >= st["day"] - 30]
+        risky = [c for c in due if c["display_status"] in ("at_risk", "overdue")]
+        review = [c for c in due if c["display_status"] == "needs_review"]
+        paid = [c for c in due if c["display_status"] == "paid"]
+        upcoming = [c for c in due if c["display_status"] in ("scheduled", "at_risk", "needs_review", "overdue")]
         send_by = None
         for c in cards:
             if c["display_status"] == "at_risk":
                 send_by = _d(c["due_day"] - 1)
                 break
-        return dict(bills_status="all_covered" if not risky else "at_risk", at_risk_count=len(risky),
-                    send_by=send_by, asked=bool(st.get("sender_ask")))
+        f = self.current_forecast(hid, st)
+        mean_ess, net, _ = self.usual_needs(hid, st)
+        bills30 = sum(c["expected"] for c in cards if st["day"] <= c["due_day"] <= month_end
+                      and c["display_status"] in ("scheduled", "at_risk"))
+        typical = f["amt_p50"] if f else float(self.h.loc[hid, "typical_amount"])
+        need = bills30 + net * 30.0 - (st["spendable"] + st["vault"])
+        suggested = float(np.clip(max(need, 0.0), 0.8 * typical, 1.5 * typical))
+        suggested = round(suggested / 500.0) * 500.0
+        shortfall_date = None
+        if risky:
+            shortfall_date = _d(min(c["due_day"] for c in risky))
+        return dict(bills_status="all_covered" if not risky else "at_risk", at_risk_count=len(risky), review_count=len(review),
+                    paid_count=len(paid), total_count=len(due), vault_scheduled=len([c for c in upcoming if c["status"] is None]),
+                    send_by=send_by, suggested_amount=int(suggested), shortfall_date=shortfall_date,
+                    next_expected=f["next_date_p50"] if f else None, asked=bool(st.get("sender_ask")))
 
 
 def _suggest(sev: str, drivers: list[dict]) -> list[str]:

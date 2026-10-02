@@ -78,6 +78,31 @@ class DemoState(Base):
     updated_at = Column(DateTime, default=now)
 
 
+class User(Base):
+    """role in {family, sender, admin}. family and sender belong to a household; admin (platform operator) does not."""
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(120), unique=True, index=True)
+    name = Column(String(60))
+    password_hash = Column(String(200))
+    role = Column(String(10))
+    household_id = Column(String(16), index=True, nullable=True)
+    sender_city = Column(String(40), nullable=True)
+    invite_code = Column(String(16), nullable=True, index=True)  # family only: lets a sender link to this household
+    is_demo = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)  # admins can disable an account
+    created_at = Column(DateTime, default=now)
+
+
+class AuthSession(Base):
+    """Server-side login sessions. Only a SHA-256 hash of the token is stored."""
+    __tablename__ = "auth_sessions"
+    token_hash = Column(String(64), primary_key=True)
+    user_id = Column(Integer, index=True)
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=now)
+
+
 class SummaryCache(Base):
     __tablename__ = "summary_cache"
     key = Column(String(120), primary_key=True)
@@ -90,6 +115,11 @@ def init_db():
     # light migration for databases created before goals.shared existed
     from sqlalchemy import inspect
     cols = {c["name"] for c in inspect(engine).get_columns("goals")}
+    ucols = {c["name"] for c in inspect(engine).get_columns("users")}
+    if "is_active" not in ucols:
+        d2 = "1" if engine.dialect.name == "sqlite" else "TRUE"
+        with engine.begin() as c:
+            c.execute(text(f"ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT {d2}"))
     if "shared" not in cols:
         default = "1" if engine.dialect.name == "sqlite" else "TRUE"
         with engine.begin() as c:

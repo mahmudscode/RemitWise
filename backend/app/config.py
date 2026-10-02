@@ -28,3 +28,11 @@ SPLIT = {"train": 0.6, "cal": 0.2, "test": 0.2}  # by household
 INTERVAL_COVERAGE = 0.8
 BUFFER_TARGET_MONTHS = 1.0
 WARN_THRESHOLD_DEFAULT = 0.4
+
+# Accounts (see docs/21-auth-and-accounts.md)
+SESSION_DAYS = 30
+SEED_DEMO_ACCOUNTS = os.getenv("SEED_DEMO_ACCOUNTS", "true").lower() in ("1", "true", "yes")
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo1234")
+# Admins are provisioned, never self-registered. Set both to create/ensure an admin on startup.
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")

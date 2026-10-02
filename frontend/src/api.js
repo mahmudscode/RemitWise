@@ -1,22 +1,53 @@
-// Demo auth: role + user headers (NOT real authentication).
+// Real accounts: a bearer token is kept in localStorage so a refresh or a new browser session stays signed in.
 // Local dev uses the Vite proxy (empty base). On Vercel set VITE_API_URL to the backend's https URL.
 export const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
-export async function api(path, { method = 'GET', body, role = 'family', user = '' } = {}) {
-  const res = await fetch(`${BASE}/api${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', 'X-Role': role, 'X-User': user },
-    body: body ? JSON.stringify(body) : undefined,
-  })
+const TOKEN_KEY = 'rw_token'
+export const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) } catch { return null } }
+export const setToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ } }
+
+// `role` / `user` options are accepted for older call sites but ignored: the server decides from the token.
+export async function api(path, { method = 'GET', body } = {}) {
+  const token = getToken()
+  let res
+  try {
+    res = await fetch(`${BASE}/api${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    const e = new Error(BASE
+      ? `Cannot reach the API at ${BASE}. Check that the backend is running, its /api/health works, and ALLOWED_ORIGINS includes this site.`
+      : 'No backend URL configured. Locally: run ./run.sh api (API on port 8000). On Vercel: set VITE_API_URL to your https backend URL and redeploy.')
+    e.network = true
+    throw e
+  }
+  if ([502, 503, 504].includes(res.status)) {  // the proxy or host could not reach the backend
+    const e = new Error(BASE
+      ? 'The backend is not responding yet. If it is on a free host it may be waking up; wait a minute and try again.'
+      : 'The backend is not running. In a terminal, run ./run.sh api (it listens on port 8000), then try again.')
+    e.network = true
+    throw e
+  }
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.detail || `Request failed (${res.status})`)
+  if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/register')) {
+      setToken(null)
+      window.dispatchEvent(new Event('rw-unauth'))
+    }
+    const detail = Array.isArray(data.detail) ? data.detail.map((d) => d.msg).join(' ') : data.detail
+    throw new Error(detail || `Request failed (${res.status})`)
+  }
   return data
 }
 
-export const taka = (n) => (n == null ? '–' : '৳' + Math.round(n).toLocaleString('en-US'))
+export const taka = (n) => (n == null ? '–' : '৳' + Math.round(n).toLocaleString('en-IN'))
 export const pct = (x) => `${Math.round(x * 100)}%`
 export const fmtDate = (s) => {
   if (!s) return '–'
   const d = new Date(s + 'T00:00:00')
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
+export const longDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+export const monthName = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long' })
