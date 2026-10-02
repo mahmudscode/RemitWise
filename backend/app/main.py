@@ -5,6 +5,7 @@ Consent is enforced here on the server; sender responses are filtered before ser
 from __future__ import annotations
 
 import json
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -31,8 +32,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="RemitWise API", version="1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-                   allow_methods=["*"], allow_headers=["*"])
+# Extra allowed origins (e.g. your Vercel URL) via ALLOWED_ORIGINS="https://a.vercel.app,https://b.com"
+_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
+    o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 # ---------------- auth (demo) ----------------
