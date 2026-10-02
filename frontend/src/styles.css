@@ -1,0 +1,64 @@
+:root {
+  --bg: #f6f7f4; --card: #ffffff; --ink: #1d2433; --muted: #667085; --line: #e4e7ec;
+  --accent: #1f7a5a; --accent-soft: #d9efe6; --amber: #b7791f; --red: #c2503a; --green: #1f7a5a;
+  --needs: #3b6fd4; --savings: #1f7a5a; --goals: #d08a1e;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #12161c; --card: #1a2029; --ink: #e8ecf2; --muted: #98a2b3; --line: #2a3340; --accent: #3fbf93; --accent-soft: #1f3a31; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', 'Noto Sans Bengali', sans-serif; }
+.app { max-width: 1100px; margin: 0 auto; padding: 0 16px 48px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px 0; }
+.brand { display: flex; gap: 10px; align-items: center; } .brand small { display: block; color: var(--muted); font-size: 12px; }
+.logo { background: var(--accent); color: #fff; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; }
+nav { display: flex; gap: 4px; background: var(--card); padding: 4px; border-radius: 12px; border: 1px solid var(--line); }
+.tab { border: 0; background: transparent; padding: 8px 14px; border-radius: 9px; color: var(--muted); cursor: pointer; font: inherit; }
+.tab.on { background: var(--accent); color: #fff; }
+.tools { display: flex; gap: 8px; }
+select, input { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); min-width: 0; }
+button { font: inherit; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); } button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.ghost { background: transparent; } button.danger { color: var(--red); }
+button.link { border: 0; background: none; color: var(--accent); padding: 4px; text-decoration: underline; }
+.timebar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--card); border: 1px solid var(--line); padding: 10px 14px; border-radius: 12px; }
+.spacer { flex: 1; }
+.error { background: #fde8e4; color: #8a2b19; padding: 10px 14px; border-radius: 10px; margin-top: 10px; cursor: pointer; }
+.demo-note { color: var(--muted); font-size: 12px; margin: 8px 0 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.span2 { grid-column: span 2; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .span2 { grid-column: auto; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 17px; } .card h3 { margin: 0 0 8px; font-size: 15px; }
+.card.highlight { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.card.red { border-color: var(--red); } .card.amber { border-color: var(--amber); }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+.big { font-size: 24px; font-weight: 700; margin: 4px 0; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 8px; }
+@media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat small { display: block; color: var(--muted); font-size: 12px; } .stat b { font-size: 20px; } .stat.warn b { color: var(--red); }
+.options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 860px) { .options { grid-template-columns: 1fr; } }
+.opt { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.stack .needs, .d.needs { background: var(--needs); } .stack .savings, .d.savings { background: var(--savings); } .stack .goals, .d.goals { background: var(--goals); }
+.d { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.split { list-style: none; margin: 0; padding: 0; } .split li { display: flex; justify-content: space-between; font-size: 14px; }
+.risk { padding: 6px 10px; border-radius: 8px; font-size: 13px; }
+.risk.green { background: var(--accent-soft); } .risk.amber { background: #fbefd6; color: #7a5313; } .risk.red { background: #fde8e4; color: #8a2b19; }
+.row { display: flex; gap: 8px; align-items: center; } .row.between { justify-content: space-between; } .wrap { flex-wrap: wrap; }
+.why { margin: 6px 0; padding-left: 18px; color: var(--muted); }
+.edit { margin-top: 14px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.slider { display: block; margin: 8px 0; } .slider input { width: 100%; padding: 0; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 13px; }
+.badge.green { background: var(--accent-soft); color: var(--green); } .badge.amber { background: #fbefd6; color: var(--amber); } .badge.red { background: #fde8e4; color: var(--red); }
+.tips { background: var(--bg); padding: 8px 12px; border-radius: 10px; } .tips ul { margin: 4px 0 0; padding-left: 18px; }
+.said { font-size: 16px; margin: 4px 0 8px; }
+.tag { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; color: var(--muted); }
+.goal { margin: 10px 0; } .progress { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; } .progress div { height: 100%; background: var(--accent); }
+.addgoal { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; } .addgoal input { flex: 1 1 110px; }
+.toggle { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; } th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); } th { color: var(--muted); font-weight: 500; }
+pre { background: var(--bg); padding: 10px; border-radius: 8px; overflow: auto; max-height: 260px; font-size: 12px; white-space: pre-wrap; }
+details summary { cursor: pointer; color: var(--accent); font-size: 13px; }

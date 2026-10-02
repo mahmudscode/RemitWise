@@ -1,0 +1,12 @@
+# PostgreSQL for the demo:  docker compose up -d
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: remitwise
+      POSTGRES_PASSWORD: remitwise
+      POSTGRES_DB: remitwise
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+volumes:
+  pgdata:

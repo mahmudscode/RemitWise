@@ -1,0 +1,479 @@
+{
+  "dataset": {
+    "households": 300,
+    "remittances": 9054,
+    "ledger_rows": 270000,
+    "seed": 42,
+    "split_by": "household",
+    "split_counts": {
+      "train": 180,
+      "cal": 60,
+      "test": 60
+    },
+    "start_date": "2024-01-01",
+    "days": 900
+  },
+  "forecast": {
+    "overall": {
+      "n": 1580,
+      "gap_mae_model": 6.735644813116191,
+      "gap_mae_naive": 9.227848101265822,
+      "amt_mape_model": 0.4517798931896406,
+      "amt_mape_naive": 0.6316474693053078,
+      "gap_coverage": 0.8291139240506329,
+      "amt_coverage": 0.7962025316455696
+    },
+    "nominal_coverage": 0.8,
+    "by_group": {
+      "regularity": {
+        "irregular": {
+          "n": 150,
+          "gap_mae_model": 14.588210433464967,
+          "gap_mae_naive": 20.24,
+          "amt_mape_model": 0.7785305373731266,
+          "amt_mape_naive": 1.0525960321420684,
+          "gap_coverage": 0.74,
+          "amt_coverage": 0.72
+        },
+        "regular": {
+          "n": 724,
+          "gap_mae_model": 3.018648321586221,
+          "gap_mae_naive": 4.3853591160221,
+          "amt_mape_model": 0.088274592690945,
+          "amt_mape_naive": 0.12484785365864076,
+          "gap_coverage": 0.8591160220994475,
+          "amt_coverage": 0.8591160220994475
+        },
+        "semi": {
+          "n": 706,
+          "gap_mae_model": 8.879016791608233,
+          "gap_mae_naive": 11.854107648725213,
+          "amt_mape_model": 0.7551300928122083,
+          "amt_mape_naive": 1.0619316581192924,
+          "gap_coverage": 0.8172804532577904,
+          "amt_coverage": 0.7478753541076487
+        }
+      },
+      "transfer_size": {
+        "large": {
+          "n": 549,
+          "gap_mae_model": 6.130220590484558,
+          "gap_mae_naive": 8.278688524590164,
+          "amt_mape_model": 0.44576313858857697,
+          "amt_mape_naive": 0.6384013025682845,
+          "gap_coverage": 0.8469945355191257,
+          "amt_coverage": 0.7759562841530054
+        },
+        "medium": {
+          "n": 520,
+          "gap_mae_model": 8.083351143001286,
+          "gap_mae_naive": 11.057692307692308,
+          "amt_mape_model": 0.48560502368291536,
+          "amt_mape_naive": 0.6772267716735034,
+          "gap_coverage": 0.7807692307692308,
+          "amt_coverage": 0.8076923076923077
+        },
+        "small": {
+          "n": 511,
+          "gap_mae_model": 6.014647957312898,
+          "gap_mae_naive": 8.385518590998043,
+          "amt_mape_model": 0.4238232012512474,
+          "amt_mape_naive": 0.5780093250923216,
+          "gap_coverage": 0.8590998043052838,
+          "amt_coverage": 0.8062622309197651
+        }
+      },
+      "region": {
+        "rural": {
+          "n": 1050,
+          "gap_mae_model": 7.176013557683015,
+          "gap_mae_naive": 9.697142857142858,
+          "amt_mape_model": 0.5026804817409967,
+          "amt_mape_naive": 0.7115078532595793,
+          "gap_coverage": 0.8247619047619048,
+          "amt_coverage": 0.7819047619047619
+        },
+        "urban": {
+          "n": 530,
+          "gap_mae_model": 5.863216168219654,
+          "gap_mae_naive": 8.29811320754717,
+          "amt_mape_model": 0.3509391045501616,
+          "amt_mape_naive": 0.4734335010940152,
+          "gap_coverage": 0.8377358490566038,
+          "amt_coverage": 0.8245283018867925
+        }
+      }
+    }
+  },
+  "warning": {
+    "threshold": 0.45,
+    "model": {
+      "precision": 0.6378,
+      "recall": 0.8547,
+      "f1": 0.7305,
+      "mean_lead_days": 7.92,
+      "n": 6967,
+      "base_rate": 0.3753
+    },
+    "threshold_only_rule": {
+      "precision": 0.9187,
+      "recall": 0.6784,
+      "f1": 0.7805,
+      "mean_lead_days": 4.82,
+      "n": 6967,
+      "base_rate": 0.3753
+    },
+    "note": "Tuned on calibration households; reported on clean test households."
+  },
+  "compare": {
+    "summary": [
+      {
+        "policy": "baseline",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 45.9667,
+        "savings_rate": 0.0214,
+        "emergency_months": 0.0,
+        "retained_share": 0.1172,
+        "borrow_cost_per_year": 1599.3769,
+        "saved_amount": 0.0,
+        "goal_raid": 0.0
+      },
+      {
+        "policy": "fixed_rule",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 9.4333,
+        "savings_rate": 0.1364,
+        "emergency_months": 1.6689,
+        "retained_share": 0.2313,
+        "borrow_cost_per_year": 303.1152,
+        "saved_amount": 37758.1121,
+        "goal_raid": 0.0
+      },
+      {
+        "policy": "fixed_rule",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 7.0,
+        "savings_rate": 0.1947,
+        "emergency_months": 2.3906,
+        "retained_share": 0.2657,
+        "borrow_cost_per_year": 228.9389,
+        "saved_amount": 54381.2996,
+        "goal_raid": 0.0
+      },
+      {
+        "policy": "fixed_rule",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 6.2,
+        "savings_rate": 0.2626,
+        "emergency_months": 2.9897,
+        "retained_share": 0.2938,
+        "borrow_cost_per_year": 213.6218,
+        "saved_amount": 67782.4677,
+        "goal_raid": 0.0
+      },
+      {
+        "policy": "remitwise",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 9.1,
+        "savings_rate": 0.1772,
+        "emergency_months": 0.9221,
+        "retained_share": 0.5759,
+        "borrow_cost_per_year": 299.4583,
+        "saved_amount": 67539.0349,
+        "goal_raid": 7786.04
+      },
+      {
+        "policy": "remitwise",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 7.1667,
+        "savings_rate": 0.2227,
+        "emergency_months": 1.515,
+        "retained_share": 0.7098,
+        "borrow_cost_per_year": 232.8331,
+        "saved_amount": 89416.9552,
+        "goal_raid": 7038.5002
+      },
+      {
+        "policy": "remitwise",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 6.2,
+        "savings_rate": 0.2626,
+        "emergency_months": 2.051,
+        "retained_share": 0.8203,
+        "borrow_cost_per_year": 213.6218,
+        "saved_amount": 106076.9671,
+        "goal_raid": 6207.4812
+      }
+    ],
+    "by_class": [
+      {
+        "cls": "irregular",
+        "policy": "baseline",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 82.875,
+        "savings_rate": -0.0416,
+        "emergency_months": 0.0,
+        "retained_share": 0.1155,
+        "borrow_cost_per_year": 1791.2147,
+        "saved_amount": 0.0,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "irregular",
+        "policy": "fixed_rule",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 18.5,
+        "savings_rate": 0.0616,
+        "emergency_months": 0.9672,
+        "retained_share": 0.2335,
+        "borrow_cost_per_year": 317.5773,
+        "saved_amount": 13754.2681,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "irregular",
+        "policy": "fixed_rule",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 15.375,
+        "savings_rate": 0.102,
+        "emergency_months": 1.3913,
+        "retained_share": 0.261,
+        "borrow_cost_per_year": 264.1802,
+        "saved_amount": 20148.3849,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "irregular",
+        "policy": "fixed_rule",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 12.375,
+        "savings_rate": 0.1963,
+        "emergency_months": 1.9606,
+        "retained_share": 0.2924,
+        "borrow_cost_per_year": 232.175,
+        "saved_amount": 28564.6075,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "irregular",
+        "policy": "remitwise",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 16.25,
+        "savings_rate": 0.1137,
+        "emergency_months": 1.0162,
+        "retained_share": 0.6029,
+        "borrow_cost_per_year": 283.1539,
+        "saved_amount": 35878.2501,
+        "goal_raid": 13619.2048
+      },
+      {
+        "cls": "irregular",
+        "policy": "remitwise",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 15.25,
+        "savings_rate": 0.1539,
+        "emergency_months": 1.6222,
+        "retained_share": 0.7085,
+        "borrow_cost_per_year": 263.9733,
+        "saved_amount": 47715.0613,
+        "goal_raid": 13220.5157
+      },
+      {
+        "cls": "irregular",
+        "policy": "remitwise",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 12.375,
+        "savings_rate": 0.1963,
+        "emergency_months": 2.1222,
+        "retained_share": 0.826,
+        "borrow_cost_per_year": 232.175,
+        "saved_amount": 59509.1178,
+        "goal_raid": 12209.5102
+      },
+      {
+        "cls": "regular",
+        "policy": "baseline",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 28.931,
+        "savings_rate": 0.031,
+        "emergency_months": 0.0,
+        "retained_share": 0.1274,
+        "borrow_cost_per_year": 1170.2387,
+        "saved_amount": 0.0,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "regular",
+        "policy": "fixed_rule",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 4.3103,
+        "savings_rate": 0.1551,
+        "emergency_months": 1.9229,
+        "retained_share": 0.2416,
+        "borrow_cost_per_year": 136.9078,
+        "saved_amount": 42612.0595,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "regular",
+        "policy": "fixed_rule",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 1.6552,
+        "savings_rate": 0.2069,
+        "emergency_months": 2.6122,
+        "retained_share": 0.2745,
+        "borrow_cost_per_year": 54.1371,
+        "saved_amount": 58679.3784,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "regular",
+        "policy": "fixed_rule",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 0.931,
+        "savings_rate": 0.2745,
+        "emergency_months": 3.1785,
+        "retained_share": 0.3019,
+        "borrow_cost_per_year": 34.3944,
+        "saved_amount": 71633.9888,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "regular",
+        "policy": "remitwise",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 4.2759,
+        "savings_rate": 0.1971,
+        "emergency_months": 0.998,
+        "retained_share": 0.5885,
+        "borrow_cost_per_year": 129.2907,
+        "saved_amount": 72695.9597,
+        "goal_raid": 6016.7605
+      },
+      {
+        "cls": "regular",
+        "policy": "remitwise",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 2.0345,
+        "savings_rate": 0.2369,
+        "emergency_months": 1.5501,
+        "retained_share": 0.7193,
+        "borrow_cost_per_year": 62.2513,
+        "saved_amount": 92664.2778,
+        "goal_raid": 5657.7136
+      },
+      {
+        "cls": "regular",
+        "policy": "remitwise",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 0.931,
+        "savings_rate": 0.2745,
+        "emergency_months": 2.1099,
+        "retained_share": 0.8268,
+        "borrow_cost_per_year": 34.3944,
+        "saved_amount": 108821.1318,
+        "goal_raid": 5396.566
+      },
+      {
+        "cls": "semi",
+        "policy": "baseline",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 54.6087,
+        "savings_rate": 0.0313,
+        "emergency_months": 0.0,
+        "retained_share": 0.1051,
+        "borrow_cost_per_year": 2073.7381,
+        "saved_amount": 0.0,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "semi",
+        "policy": "fixed_rule",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 12.7391,
+        "savings_rate": 0.1388,
+        "emergency_months": 1.5926,
+        "retained_share": 0.2176,
+        "borrow_cost_per_year": 507.6509,
+        "saved_amount": 39987.0807,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "semi",
+        "policy": "fixed_rule",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 10.8261,
+        "savings_rate": 0.2115,
+        "emergency_months": 2.4588,
+        "retained_share": 0.2563,
+        "borrow_cost_per_year": 437.0832,
+        "saved_amount": 60869.0836,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "semi",
+        "policy": "fixed_rule",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 10.6957,
+        "savings_rate": 0.2706,
+        "emergency_months": 3.1096,
+        "retained_share": 0.2841,
+        "borrow_cost_per_year": 433.1509,
+        "saved_amount": 76567.1968,
+        "goal_raid": 0.0
+      },
+      {
+        "cls": "semi",
+        "policy": "remitwise",
+        "compliance": 0.6,
+        "shortfall_days_per_year": 12.6957,
+        "savings_rate": 0.1741,
+        "emergency_months": 0.7936,
+        "retained_share": 0.5507,
+        "borrow_cost_per_year": 519.6887,
+        "saved_amount": 72049.2723,
+        "goal_raid": 7987.9439
+      },
+      {
+        "cls": "semi",
+        "policy": "remitwise",
+        "compliance": 0.8,
+        "shortfall_days_per_year": 10.8261,
+        "savings_rate": 0.2287,
+        "emergency_months": 1.4334,
+        "retained_share": 0.6983,
+        "borrow_cost_per_year": 437.0832,
+        "saved_amount": 99827.5117,
+        "goal_raid": 6629.2257
+      },
+      {
+        "cls": "semi",
+        "policy": "remitwise",
+        "compliance": 1.0,
+        "shortfall_days_per_year": 10.6957,
+        "savings_rate": 0.2706,
+        "emergency_months": 1.952,
+        "retained_share": 0.81,
+        "borrow_cost_per_year": 433.1509,
+        "saved_amount": 118814.4462,
+        "goal_raid": 5142.2771
+      }
+    ],
+    "n_households": 60,
+    "horizon_days": 365,
+    "metrics": [
+      "shortfall_days_per_year",
+      "savings_rate",
+      "emergency_months",
+      "retained_share",
+      "borrow_cost_per_year",
+      "saved_amount",
+      "goal_raid"
+    ]
+  },
+  "conformal": {
+    "gap": 0.7318915344040495,
+    "amt": 0.023160461096773916
+  },
+  "generated_at": "2026-10-02T23:19:48"
+}

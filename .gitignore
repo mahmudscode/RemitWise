@@ -1,0 +1,9 @@
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.env
+backend/artifacts/*.db
+backend/artifacts/*.joblib
+frontend/dist/
+.pytest_cache/
