@@ -1,0 +1,16 @@
+# Render blueprint: New > Blueprint > pick this repo. Backend only; the frontend goes on Vercel.
+services:
+  - type: web
+    name: remitwise-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    plan: free
+    envVars:
+      - key: ALLOWED_ORIGINS
+        sync: false        # set to your Vercel URL, e.g. https://remitwise.vercel.app
+      - key: GROQ_API_KEY
+        sync: false        # optional
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile

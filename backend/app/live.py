@@ -21,8 +21,7 @@ class Engine:
         self.h = db.read_sql("SELECT * FROM households").set_index("household_id")
         self.ev = {k: v.sort_values("seq").reset_index(drop=True)
                    for k, v in db.read_sql("SELECT * FROM remittances").groupby("household_id")}
-        self.led = {k: v.sort_values("day").reset_index(drop=True)
-                    for k, v in db.read_sql("SELECT * FROM ledger").groupby("household_id")}
+        self.led = {}  # filled for the demo households only (keeps memory small on free hosts)
         fc = db.read_sql("SELECT * FROM forecasts")
         self.fc = {k: {int(r["seq"]): r for r in v.to_dict("records")} for k, v in fc.groupby("household_id")}
         ff = db.read_sql("SELECT * FROM forecast_features")
@@ -30,6 +29,9 @@ class Engine:
         self.model = forecast.Forecaster.load()
         self._start = {}
         self.demo_ids = self._pick_demo()
+        ids = ",".join(f"'{i}'" for i in self.demo_ids)
+        led = db.read_sql(f"SELECT * FROM ledger WHERE household_id IN ({ids})")
+        self.led = {k: v.sort_values("day").reset_index(drop=True) for k, v in led.groupby("household_id")}
 
     def start_seq(self, hid: str) -> int:
         """First arrival (seq >= 3) that is a normal-sized transfer, so the demo starts on a main remittance."""

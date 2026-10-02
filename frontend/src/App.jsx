@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, fmtDate } from './api'
+import { api, fmtDate, BASE } from './api'
 import { T } from './i18n'
 import Family from './Family.jsx'
 import Sender from './Sender.jsx'
@@ -18,7 +18,9 @@ export default function App() {
   useEffect(() => {
     api('/households', { role: 'admin' })
       .then((r) => { setHh(r); setHid(r[0]?.household_id || '') })
-      .catch(() => setErr('Cannot reach the API on port 8000. Start it with ./run.sh api (and run ./run.sh build once if you have not).'))
+      .catch(() => setErr(BASE
+        ? `Cannot reach the API at ${BASE}. Check that the backend is running, its /api/health works, and ALLOWED_ORIGINS includes this site.`
+        : 'No backend URL configured. Locally: run ./run.sh api (API on port 8000). On Vercel: set VITE_API_URL to your https backend URL and redeploy.'))
   }, [])
 
   const role = view === 'family' ? 'family' : view === 'sender' ? 'sender' : 'admin'

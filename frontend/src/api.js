@@ -1,6 +1,6 @@
 // Demo auth: role + user headers (NOT real authentication).
 // Local dev uses the Vite proxy (empty base). On Vercel set VITE_API_URL to the backend's https URL.
-const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+export const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 export async function api(path, { method = 'GET', body, role = 'family', user = '' } = {}) {
   const res = await fetch(`${BASE}/api${path}`, {

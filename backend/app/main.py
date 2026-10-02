@@ -68,7 +68,7 @@ def _eng() -> Engine:
 
 
 def _check(hid: str):
-    if hid not in _eng().h.index:
+    if hid not in _eng().demo_ids:
         raise HTTPException(404, "unknown household")
 
 
