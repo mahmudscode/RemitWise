@@ -21,7 +21,7 @@
 14. Storage: SQLite (simple demo) vs PostgreSQL.
 15. LLM provider and fallback strategy; Bangla quality acceptable?
 16. Compliance assumptions to present in the with/without experiment (e.g., 60/80/100%).
-17. Dataset size and time horizon (default 300 households × 24 months).
+17. Dataset size and time horizon: **Decided: 500 households × ~30 months** (the original 300 are frozen so existing accounts stay valid; 200 added as a second block).
 
 ## Evidence decisions
 18. Which fairness cohorts do we publish?

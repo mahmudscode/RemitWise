@@ -47,3 +47,6 @@ Replay the same household history under two policies: (a) baseline behavior, (b)
 
 ## Documentation required
 A data card listing every assumption, parameter ranges, seeds, and known limitations, including: simulated behavior change is an assumption, not evidence of real-world effect.
+
+## Dataset as built
+500 households (H001–H500) × ~30 months. **Block design:** H001–H300 are the original build and never change; H301–H500 are a second block generated with its own seed (`seed + 1000`) and split 60/20/20 on its own. Appending households therefore never alters existing households, the held-out test split, the demo households, or any registered family's world. Splits overall: 300 train, 100 calibration, 100 test. Demo households are chosen only from the original block so they stay fixed.

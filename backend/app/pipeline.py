@@ -15,7 +15,7 @@ from . import bills as billslib, config, db, evaluation, forecast, sim, simulato
 def run():
     t0 = time.time()
     print("1/6 generating synthetic data ...")
-    h, r, l, bdefs, bsched = simulator.generate()
+    h, r, l, bdefs, bsched = simulator.generate_dataset()
     bsched = billslib.annotate(bsched, bdefs)
     bmaps = evaluation._bills_maps(h, bdefs, bsched)
     ds = forecast.build_dataset(h, r)

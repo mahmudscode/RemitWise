@@ -110,6 +110,7 @@ class Engine:
 
     def _pick_demo(self):
         t = self.h[self.h.split == "test"]
+        t = t[t.index <= f"H{300:03d}"]  # demo households stay fixed: only the original block can be chosen
         out = {}
         for cls, name in (("semi", "Rahima"), ("regular", "Salma"), ("irregular", "Nasrin")):
             sub = t[t.regularity_class == cls]

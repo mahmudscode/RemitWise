@@ -36,7 +36,7 @@ def _next_eid_after(ts: pd.Timestamp):
     return later[0] if len(later) else None
 
 
-def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int = config.N_DAYS):
+def generate(seed: int = config.SEED, n: int = 300, n_days: int = config.N_DAYS, id_offset: int = 0):
     """Return (households, remittances, ledger) DataFrames."""
     rng = np.random.default_rng(seed)
     classes = rng.choice(list(CLASS_PROBS), size=n, p=list(CLASS_PROBS.values()))
@@ -44,7 +44,7 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
     bill_def_rows, bill_sched_rows = [], []
 
     for i in range(n):
-        hid = f"H{i + 1:03d}"
+        hid = f"H{id_offset + i + 1:03d}"
         cls = str(classes[i])
         p = CLASS_PARAMS[cls]
         size = int(rng.integers(3, 8))
@@ -190,6 +190,20 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
     return households, remittances, ledger, bill_defs, bill_sched
 
 
+LEGACY_BLOCK = 300  # the first 300 households are generated exactly as in the original build and never change
+
+
+def generate_dataset(total: int = config.N_HOUSEHOLDS, seed: int = config.SEED, n_days: int = config.N_DAYS):
+    """Households H001..H<total>. The first LEGACY_BLOCK are byte-for-byte the original synthetic world (so
+    existing accounts, demo households and the held-out test split stay valid); any extra households are a
+    second block with its own seed and ids, split 60/20/20 on its own. Appending never disturbs earlier ones."""
+    first = min(total, LEGACY_BLOCK)
+    parts = [generate(seed, first, n_days, 0)]
+    if total > first:
+        parts.append(generate(seed + 1000, total - first, n_days, first))
+    return tuple(pd.concat([p[k] for p in parts], ignore_index=True) for k in range(5))
+
+
 if __name__ == "__main__":
-    h, r, l, bd, bs = generate()
+    h, r, l, bd, bs = generate_dataset()
     print(h.regularity_class.value_counts().to_dict(), len(r), len(l), len(bd), len(bs))

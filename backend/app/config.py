@@ -19,7 +19,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Synthetic data (doc 07)
 SEED = 42
-N_HOUSEHOLDS = 300
+N_HOUSEHOLDS = 500
 START_DATE = "2024-01-01"
 N_DAYS = 900
 SPLIT = {"train": 0.6, "cal": 0.2, "test": 0.2}  # by household

@@ -141,7 +141,7 @@ def warning_metrics(h, r, l, ds_all, P_all_df, bmaps) -> dict:
     P_all = {}
     for hid, g in P_all_df.groupby("household_id"):
         P_all[hid] = {int(rw["seq"]): rw for rw in g.to_dict("records")}
-    cal_ids = h[h.split == "cal"].household_id.tolist()[:40]
+    cal_ids = h[h.split == "cal"].household_id.tolist()[:60]
     test_ids = h[h.split == "test"].household_id.tolist()
     cal = _checkpoints(h, r, l, cal_ids, P_all, bmaps)
     grid = np.arange(0.15, 0.85, 0.05)
