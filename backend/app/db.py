@@ -30,6 +30,7 @@ class Goal(Base):
     target = Column(Float)
     deadline_day = Column(Integer)  # simulated day index
     priority = Column(Integer, default=2)
+    shared = Column(Boolean, default=True)  # per-goal "share progress with sender"
     created_at = Column(DateTime, default=now)
 
 
@@ -86,6 +87,13 @@ class SummaryCache(Base):
 
 def init_db():
     Base.metadata.create_all(engine)
+    # light migration for databases created before goals.shared existed
+    from sqlalchemy import inspect
+    cols = {c["name"] for c in inspect(engine).get_columns("goals")}
+    if "shared" not in cols:
+        default = "1" if engine.dialect.name == "sqlite" else "TRUE"
+        with engine.begin() as c:
+            c.execute(text(f"ALTER TABLE goals ADD COLUMN shared BOOLEAN DEFAULT {default}"))
 
 
 def write_frame(df: pd.DataFrame, name: str, index_cols: list[str] | None = None):

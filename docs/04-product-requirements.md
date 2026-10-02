@@ -29,6 +29,15 @@ Goals visible to both sides as progress only (percent/amount), not transactions,
 LLM-generated explanation of plan, warnings and progress, grounded only in computed numbers supplied to it.
 **Acceptance:** every number in the text is traceable to a computed field; assumptions and predictions labeled separately; Bangla-friendly output as target.
 
+### F7 — Bills, EMI and auto-pay (added)
+Simulated mandates (electricity, gas, internet, EMI, school fees). Each transfer funds a **bill vault** first; bills are paid on their due date from the vault. Variable bills get a statistical estimate; **unusual bills (> 1.8x estimate) and bills over the family's limit are held for approval**; the family can pause or cancel any mandate. **Acceptance:** on-time rate and late fees measured with vs without; unusual bills never auto-paid.
+
+### F8 — Safe-to-spend, projection and options (added)
+Daily safe-to-spend figure, a day-by-day projected balance with an uncertainty band and bill markers, and concrete options when a shortfall is predicted (the family chooses).
+
+### F9 — Per-goal sharing and goal suggestions (added)
+Share progress with the sender goal by goal; suggest a realistic monthly amount from the forecast.
+
 ## Stretch features
 - S1: New goals on demand (education, emergency, business).
 - S2: Second income source.

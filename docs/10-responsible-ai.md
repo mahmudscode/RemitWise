@@ -18,6 +18,12 @@ Maps to the guideline's minimums (worth 5% of score, but also a trust story for 
 - **No manipulation:** no urgency language, no spend nudges, no hidden fees, no product pushing.
 - **Informed choice:** show alternatives and trade-offs; family can ignore recommendations.
 
+## Auto-pay safeguards (bills and EMI)
+- Auto-pay applies only to mandates the family created and switched on; each has a monthly limit and an optional "confirm over limit" rule.
+- Unusual bills (more than 1.8x the estimate) are **never paid automatically**; they wait for Approve / Dispute / Pay manually.
+- Every mandate can be paused or cancelled at any time; actions are written to the audit log.
+- Demo only: no real biller, account or money is connected.
+
 ## LLM safety
 - LLM receives structured computed facts only; numbers validated post-generation; fallback to templates.
 - Goal names and any user text sanitized; test with injection strings.

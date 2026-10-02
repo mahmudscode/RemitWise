@@ -73,10 +73,10 @@ def template(kind: str, facts: dict, lang: str = "en") -> str:
         goals = ", ".join(f"{k} ৳{taka(v)}" for k, v in p["goals"].items()) or ("কোনো লক্ষ্য নয়" if bn else "none this time")
         if bn:
             return (f"৳{taka(p['amount'])} এসেছে। পরের টাকা প্রায় {round(facts['rem_p50'])} দিনের মধ্যে আসার সম্ভাবনা, "
-                    f"দেরি হলে {round(facts['rem_p90'])} দিন পর্যন্ত হতে পারে। প্রয়োজনের জন্য ৳{taka(p['needs'])}, "
+                    f"দেরি হলে {round(facts['rem_p90'])} দিন পর্যন্ত হতে পারে। বিল ও কিস্তির জন্য ৳{taka(p.get('bills', 0))}, প্রয়োজনের জন্য ৳{taka(p['needs'])}, "
                     f"সঞ্চয়ের জন্য ৳{taka(p['savings'])}, লক্ষ্যের জন্য {goals} রাখার পরামর্শ। সিদ্ধান্ত আপনার।")
         return (f"৳{taka(p['amount'])} arrived. The next transfer is expected in about {round(facts['rem_p50'])} days "
-                f"and could be as late as {round(facts['rem_p90'])} days. We suggest ৳{taka(p['needs'])} for needs, "
+                f"and could be as late as {round(facts['rem_p90'])} days. We suggest ৳{taka(p.get('bills', 0))} for bills and EMIs, ৳{taka(p['needs'])} for daily needs, "
                 f"৳{taka(p['savings'])} for savings, and goals: {goals}. The decision is yours.")
     if kind == "warning":
         s = facts["shortfall"]
@@ -97,6 +97,13 @@ def template(kind: str, facts: dict, lang: str = "en") -> str:
         if bn:
             return "লক্ষ্যের অগ্রগতি — " + "; ".join(parts) + "।"
         return "Goal progress — " + "; ".join(parts) + "."
+    if kind == "monthly":
+        m = facts["month"]
+        if bn:
+            return (f"এই সময়ে {m['on_time_pct']}% বিল সময়মতো দেওয়া হয়েছে এবং ৳{taka(m['late_fees_avoided'])} দেরির ফি এড়ানো গেছে। "
+                    f"সঞ্চয় হয়েছে ৳{taka(m['savings_built'])}। পরামর্শ: {m['suggestion_bn']}")
+        return (f"{m['on_time_pct']}% of your bills were paid on time and about ৳{taka(m['late_fees_avoided'])} in late fees "
+                f"were avoided. You have saved ৳{taka(m['savings_built'])} so far. One idea: {m['suggestion']}")
     return ""
 
 

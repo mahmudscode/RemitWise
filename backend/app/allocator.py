@@ -37,13 +37,14 @@ class Plan:
     goals: dict = field(default_factory=dict)
     reserve_days: float = 0.0
     reasons: list = field(default_factory=list)
+    bills: float = 0.0  # bill & EMI vault (paid automatically on due dates, family can pause any mandate)
 
     def goals_total(self) -> float:
         return float(sum(self.goals.values()))
 
     def to_dict(self) -> dict:
         return dict(style=self.style, label=self.label, amount=round(self.amount),
-                    needs=round(self.needs), savings=round(self.savings),
+                    bills=round(self.bills), needs=round(self.needs), savings=round(self.savings),
                     goals={k: round(v) for k, v in self.goals.items()},
                     goals_total=round(self.goals_total()), reserve_days=round(self.reserve_days, 1),
                     reasons=self.reasons)
@@ -57,7 +58,8 @@ def reserve_days_for(style: str, rem: dict) -> float:
 
 def propose(amount: float, rem: dict, daily_needs: float, spendable: float, buffer: float,
             monthly_needs: float, goals: list[Goal], style: str = "balanced",
-            buffer_target_months: float = 1.0, typical_gap: float = 30.0) -> Plan:
+            buffer_target_months: float = 1.0, typical_gap: float = 30.0,
+            bills_needed: float = 0.0, vault: float = 0.0, bills_monthly: float = 0.0) -> Plan:
     """Split an arrived remittance into needs / savings (emergency buffer) / goals.
 
     daily_needs is the NET daily deficit to cover from the remittance (essentials minus local income).
@@ -65,17 +67,24 @@ def propose(amount: float, rem: dict, daily_needs: float, spendable: float, buff
     s = STYLES[style]
     days = reserve_days_for(style, rem)
     margin = 1.05  # 5% margin on essentials for noise
+    # 1) bills & EMIs first: fund the vault for everything due before the next transfer
+    bills = float(min(max(bills_needed - vault, 0.0), amount))
+    amount_left = amount - bills
     needs_target = daily_needs * days * margin
-    needs = float(min(max(needs_target - spendable, 0.0), amount))
-    surplus = amount - needs
-    reasons = [
+    needs = float(min(max(needs_target - spendable, 0.0), amount_left))
+    surplus = amount_left - needs
+    reasons = []
+    if bills_needed > 0:
+        reasons.append(f"Bills and EMIs due before the next transfer need about {round(bills_needed):,}; "
+                       f"{round(bills):,} is added to the bill vault so they are paid on time.")
+    reasons += [
         f"Next transfer is expected in {round(rem['rem_p50'])} days (could be as late as {round(rem['rem_p90'])}). "
         f"We reserve money for about {round(days)} days of essentials.",
     ]
     if spendable > 0 and needs < needs_target:
         reasons.append("Money you already have in hand is counted before adding more to needs.")
 
-    target_buffer = buffer_target_months * monthly_needs
+    target_buffer = buffer_target_months * (monthly_needs + bills_monthly)
     topup_room = max(target_buffer - buffer, 0.0)
     savings = float(min(topup_room, s["topup"] * surplus))
     surplus -= savings
@@ -112,20 +121,21 @@ def propose(amount: float, rem: dict, daily_needs: float, spendable: float, buff
         savings += surplus  # nothing left to fund: keep as extra savings (still the family's money)
         reasons.append("Extra money not needed for goals is kept as savings.")
     return Plan(style=style, label=s["label"], amount=amount, needs=needs, savings=savings,
-                goals=alloc, reserve_days=days, reasons=reasons)
+                goals=alloc, reserve_days=days, reasons=reasons, bills=bills)
 
 
-def custom_plan(amount: float, needs: float, savings: float, goals: dict) -> Plan:
+def custom_plan(amount: float, needs: float, savings: float, goals: dict, bills: float = 0.0) -> Plan:
     """Family-edited split. Normalised so it never exceeds the amount."""
+    bills = max(bills, 0.0)
     needs = max(needs, 0.0)
     savings = max(savings, 0.0)
     g = {k: max(float(v), 0.0) for k, v in goals.items()}
-    total = needs + savings + sum(g.values())
+    total = bills + needs + savings + sum(g.values())
     if total > amount and total > 0:
         k = amount / total
-        needs, savings = needs * k, savings * k
+        bills, needs, savings = bills * k, needs * k, savings * k
         g = {a: b * k for a, b in g.items()}
     elif total < amount:
         needs += amount - total  # unallocated money stays spendable
     return Plan(style="custom", label="Your edit", amount=amount, needs=needs, savings=savings, goals=g,
-                reasons=["Edited by the family."])
+                reasons=["Edited by the family."], bills=bills)

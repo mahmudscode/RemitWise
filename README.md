@@ -11,9 +11,10 @@ Planning docs are in [docs/](docs/). **All data is synthetic; no real PII.**
 | Smart budget allocator | `backend/app/allocator.py` | Deterministic rules + greedy goal optimiser; 3 plan styles; family always decides |
 | Shortfall early warning | `backend/app/risk.py` | Monte-Carlo projection + rule-trace drivers |
 | Policy replay (with vs without) | `backend/app/sim.py` | Baseline vs fixed 50/30/20 vs RemitWise at 60/80/100% compliance |
+| Bills, EMI and auto-pay | `backend/app/bills.py`, `live.py` | Bill vault, on-time payment, unusual-bill review, mandates with limits |
 | Grounded summaries | `backend/app/explain.py` | Groq LLM → number validation → template fallback (EN + Bangla) |
 | API with server-side consent | `backend/app/main.py` | FastAPI; sender endpoints return goal progress only |
-| App | `frontend/` | Family, Sender and Judge-panel views (React + Vite) |
+| App | `frontend/` | Family app (Home, Payments, Plan, Goals, Insights), Sender view, Demo & insights panel (React + Vite) |
 
 ## Run
 ```bash
@@ -25,8 +26,18 @@ docker compose up -d  # optional: PostgreSQL (then set DATABASE_URL); otherwise 
 ./run.sh web          # http://localhost:5173
 ./run.sh test
 ```
-Demo: Family view → **Next remittance** → pick a plan → **Next day / +7 days** → watch the warning.
-Judge panel → scenario buttons (delayed transfer, large expense, second income, new family member) and the with/without comparison.
+Demo: Family app → **Trigger remittance** → pick a plan → **+7 days** a few times → watch bills get paid, then try **Demo & insights → Inject unusually high bill** and review it under **Payments**.
+Demo panel → scenario buttons, forecast vs actual, and the with/without comparison. Screens are described in `docs/20-ui-design-and-screens.md`.
+
+## Headline results (clean test households, simulated year at 80% compliance)
+| | No plan | Fixed 50/30/20 | RemitWise |
+|---|---|---|---|
+| Shortfall days / year | 33.5 | 6.9 | 10.1 |
+| Bills paid on time | 90% | 96% | 98% |
+| Late fees / year | ৳514 | ৳264 | ৳97 |
+| Kept in wallet after 24h | 13% | 27% | 77% |
+
+A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, fees and wallet retention. Forecast error is 7.6 vs 9.8 days (naive); the bill estimate is 10% vs 16% off. These depend on the simulation's behaviour assumptions.
 
 ## Honest status
 - The app and tests were verified against **SQLite**. PostgreSQL support exists (SQLAlchemy + `DATABASE_URL`, compose file included) but has **not been run** in the build environment.

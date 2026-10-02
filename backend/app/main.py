@@ -17,7 +17,7 @@ from .db import Consent, Decision, Goal as GoalRow, SenderLink, SessionLocal, Su
 from .live import Engine
 
 ENGINE: Engine | None = None
-SCOPES = ("goal_progress", "savings_total", "spending_categories")
+SCOPES = ("goal_progress", "savings_total", "bills_status", "spending_categories")
 DEFAULT_SCOPE = "goal_progress"
 
 
@@ -105,9 +105,12 @@ def health():
 @app.get("/api/households")
 def households():
     e = _eng()
+    senders = ["Rahim", "Karim", "Jamal"]
+    cities = {"gulf": "Dubai", "malaysia": "Kuala Lumpur", "other": "abroad"}
     return [dict(household_id=h, name=n, regularity_class=e.h.loc[h, "regularity_class"],
-                 region=e.h.loc[h, "region"], size=int(e.h.loc[h, "size"]), sender_id=f"S-{h}")
-            for h, n in e.demo_ids.items()]
+                 region=e.h.loc[h, "region"], size=int(e.h.loc[h, "size"]), sender_id=f"S-{h}",
+                 sender_name=senders[i % 3], sender_city=cities.get(e.h.loc[h, "sender_origin"], "abroad"))
+            for i, (h, n) in enumerate(e.demo_ids.items())]
 
 
 def _public_state(hid: str, st: dict) -> dict:
@@ -116,15 +119,25 @@ def _public_state(hid: str, st: dict) -> dict:
     mean_ess, net, local = e.usual_needs(hid, st)
     return dict(
         household_id=hid, day=st["day"], date=_date(st["day"]), spendable=round(st["spendable"]),
-        buffer=round(st["buffer"]), goals_total=round(sum(st["goals"].values())), debt=round(st["debt"]),
+        buffer=round(st["buffer"]), vault=round(st["vault"]), goals_total=round(sum(st["goals"].values())),
+        debt=round(st["debt"]), bills_due=st["bills_due"], bills_on_time=st["bills_on_time"],
+        late_fees=round(st["late_fees"]), fees_avoided=round(st["fees_avoided"]),
+        anomalies_caught=st["anomalies_caught"], overbilling_avoided=round(st["overbilling_avoided"]),
         shortfall_days=st["shortfall_days"], pending=st["pending"], adherent=st["adherent"],
         goals=[dict(id=g.id, name=g.name, target=round(g.target), current=round(g.current),
                     pct=round(100 * min(g.current / g.target, 1.0), 1) if g.target else 0,
-                    days_left=round(g.days_left), priority=g.priority) for g in goals],
+                    days_left=round(g.days_left), priority=g.priority, shared=_goal_shared(g.id),
+                    pace=e.goal_pace(hid, st, g)) for g in goals],
         history=st["history"][-60:], log=st["log"][-12:], daily_needs=round(mean_ess), monthly_needs=round(mean_ess * 30),
         retained_share=round(st["retained_amt"] / st["total_amt"], 3) if st["total_amt"] else None,
         sender_intent=st.get("sender_intent"),
     )
+
+
+def _goal_shared(gid: str) -> bool:
+    with SessionLocal() as s:
+        g = s.get(GoalRow, int(gid))
+        return bool(g.shared) if g is not None and g.shared is not None else True
 
 
 def _date(day: int) -> str:
@@ -252,6 +265,7 @@ def get_plan(hid: str, w: Who = Depends(family_or_admin)):
 class PlanEval(BaseModel):
     needs: float
     savings: float = 0.0
+    bills: float = 0.0
     goals: dict[str, float] = {}
 
 
@@ -264,7 +278,7 @@ def plan_evaluate(hid: str, body: PlanEval, w: Who = Depends(family_or_admin)):
         raise HTTPException(409, "no pending remittance")
     f = e.arrival_forecast(hid, st["pending"]["seq"])
     rem = dict(rem_p10=f["gap_p10"], rem_p50=f["gap_p50"], rem_p90=f["gap_p90"])
-    plan = allocator.custom_plan(st["pending"]["got"], body.needs, body.savings, body.goals)
+    plan = allocator.custom_plan(st["pending"]["got"], body.needs, body.savings, body.goals, body.bills)
     d = plan.to_dict()
     d["shortfall_prob"] = e.plan_risk(hid, st, plan.needs, rem)
     return _stamp(d)
@@ -402,12 +416,16 @@ def sender_goals(sid: str, w: Who = Depends(sender_only)):
     hid = _hid_of(sid)
     view = _consent_view(hid, sid)
     allowed = view["sender_accepted"] and view["scopes"].get("goal_progress") == "granted"
-    out = dict(consent=view, goals=[], savings_total=None)
+    out = dict(consent=view, goals=[], savings_total=None, bills=None)
+    if view["sender_accepted"] and view["scopes"].get("bills_status") == "granted":
+        sv = _eng().sender_view(hid, _eng().get(hid))
+        out["bills"] = dict(status=sv["bills_status"], at_risk_count=sv["at_risk_count"], send_by=sv["send_by"],
+                            family_asked=sv["asked"])
     if allowed:
         e = _eng()
         st = e.get(hid)
         out["goals"] = [dict(name=g.name, pct=round(100 * min(g.current / g.target, 1.0), 1) if g.target else 0,
-                             on_track=_on_track(g)) for g in e.goals_list(hid, st)]
+                             on_track=_on_track(g)) for g in e.goals_list(hid, st) if _goal_shared(g.id)]
         if view["scopes"].get("savings_total") == "granted":
             out["savings_total"] = round(st["buffer"] + sum(st["goals"].values()))
     else:
@@ -459,7 +477,7 @@ def request_more(sid: str, body: VisReq, w: Who = Depends(sender_only)):
 
 # ---------------- explanation ----------------
 @app.get("/api/households/{hid}/summary")
-def summary(hid: str, type: str = Query("plan", pattern="^(plan|warning|progress)$"),
+def summary(hid: str, type: str = Query("plan", pattern="^(plan|warning|progress|monthly)$"),
             lang: str = Query("en", pattern="^(en|bn)$"), w: Who = Depends(family_or_admin)):
     _check(hid)
     e = _eng()
@@ -476,6 +494,8 @@ def summary(hid: str, type: str = Query("plan", pattern="^(plan|warning|progress
         if not sf.get("available"):
             raise HTTPException(409, "not enough history yet")
         facts = dict(shortfall={k: sf.get(k) for k in ("prob", "runout_p50", "severity")} | dict(drivers=sf["drivers"]))
+    elif type == "monthly":
+        facts = dict(month=_month_facts(e, hid, st))
     else:
         facts = dict(goals=[dict(name=g.name, pct=round(100 * min(g.current / g.target, 1.0), 1) if g.target else 0)
                             for g in e.goals_list(hid, st)])
@@ -526,3 +546,218 @@ def audit_log(limit: int = 50, w: Who = Depends(admin_only)):
         rows = s.query(Audit).order_by(Audit.id.desc()).limit(limit).all()
     return [dict(ts=r.ts.isoformat(), actor=r.actor, action=r.action, household_id=r.household_id,
                  detail=r.detail) for r in rows]
+
+
+def _month_facts(e: Engine, hid: str, st: dict) -> dict:
+    due = max(st["bills_due"], 0)
+    pct = round(100 * st["bills_on_time"] / due) if due else 100
+    unused = [x for x in e.goals_list(hid, st)]
+    suggestion = "keep the bill vault funded first when a transfer arrives."
+    if st["shortfall_days"] > 0:
+        suggestion = "set a small daily spending limit in the week before the next transfer."
+    return dict(on_time_pct=pct, late_fees_avoided=round(st["fees_avoided"]),
+                savings_built=round(st["buffer"] + sum(st["goals"].values())),
+                suggestion=suggestion,
+                suggestion_bn="বিলের জন্য আগে টাকা আলাদা রাখুন।" if st["shortfall_days"] == 0 else "পরের টাকা আসার আগের সপ্তাহে দৈনিক খরচের সীমা ঠিক করুন।")
+
+
+# ---------------- Home / Plan / Payments / Goals / Insights (family app) ----------------
+@app.get("/api/households/{hid}/home")
+def home(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    return _stamp(e.home(hid, st, _threshold()))
+
+
+@app.get("/api/households/{hid}/bills")
+def bills_list(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    cards = e.bill_cards(hid, st, 45, 35)
+    for c in cards:
+        c.pop("true_amount", None)
+    defs = [dict(bill_id=b["bill_id"], name=b["name"], kind=b["kind"], usual=round(b["usual"]),
+                 variable=b["variable"], due_dom=b["due_dom"], **{k: v for k, v in e._cfg(st, b["bill_id"]).items()})
+            for b in e._defs(hid, st).values() if e._cfg(st, b["bill_id"])["active"]]
+    return _stamp(dict(items=cards, mandates=defs, today=_date(st["day"]), today_day=st["day"],
+                       vault=round(st["vault"]), late_fees=round(st["late_fees"])))
+
+
+class AutopayIn(BaseModel):
+    on: bool
+
+
+@app.post("/api/households/{hid}/bills/{bill_id}/autopay")
+def bills_autopay(hid: str, bill_id: str, body: AutopayIn, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st = e.set_autopay(hid, st, bill_id, body.on)
+    except ValueError as ex:
+        raise HTTPException(404, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, "autopay", hid, dict(bill_id=bill_id, on=body.on))
+    return dict(ok=True)
+
+
+class MandateIn(BaseModel):
+    biller: str = Field(min_length=2, max_length=40)
+    kind: str = Field("utility", pattern="^(utility|emi|school|other)$")
+    account_number: str = Field(min_length=4, max_length=24)
+    usual_amount: float = Field(gt=0, le=1_000_000)
+    due_day: int = Field(ge=1, le=28)
+    monthly_limit: float = Field(gt=0, le=10_000_000)
+    confirm_over_limit: bool = True
+
+
+@app.post("/api/households/{hid}/bills/mandates")
+def bills_add_mandate(hid: str, body: MandateIn, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    st = e.add_mandate(hid, st, explain.sanitize_text(body.biller), body.kind, body.usual_amount, body.due_day,
+                       body.monthly_limit, body.confirm_over_limit, body.account_number)
+    e.save(hid, st)
+    db.audit(w.role, "mandate_add", hid, dict(biller=body.biller, limit=body.monthly_limit))
+    return dict(ok=True)
+
+
+@app.delete("/api/households/{hid}/bills/mandates/{bill_id}")
+def bills_remove_mandate(hid: str, bill_id: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    st = e.remove_mandate(hid, st, bill_id)
+    e.save(hid, st)
+    db.audit(w.role, "mandate_cancel", hid, dict(bill_id=bill_id))
+    return dict(ok=True)
+
+
+class ResolveIn(BaseModel):
+    action: str = Field(pattern="^(approve|dispute|pay_manually)$")
+
+
+@app.post("/api/households/{hid}/bills/resolve")
+def bills_resolve(hid: str, key: str, body: ResolveIn, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st = e.resolve_bill(hid, st, key, body.action)
+    except ValueError as ex:
+        raise HTTPException(409, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, f"bill:{body.action}", hid, dict(key=key))
+    return _stamp(_public_state(hid, st))
+
+
+@app.get("/api/households/{hid}/plan/projection")
+def plan_projection(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    p = e.projection(hid, st)
+    if p is None:
+        raise HTTPException(409, "not enough history yet")
+    return _stamp(p)
+
+
+@app.get("/api/households/{hid}/plan/categories")
+def plan_categories(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    return e.categories(hid, e.get(hid))
+
+
+@app.get("/api/households/{hid}/plan/options")
+def plan_options(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    return _stamp(dict(options=e.options(hid, e.get(hid), _threshold())))
+
+
+class OptionIn(BaseModel):
+    option: str = Field(pattern="^(move_from_goals|ask_sender)$")
+
+
+@app.post("/api/households/{hid}/plan/options/apply")
+def plan_option_apply(hid: str, body: OptionIn, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st = e.apply_option(hid, st, body.option, _threshold())
+    except ValueError as ex:
+        raise HTTPException(409, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, f"option:{body.option}", hid)
+    return _stamp(_public_state(hid, st))
+
+
+class ShareIn(BaseModel):
+    shared: bool
+
+
+@app.post("/api/households/{hid}/goals/{gid}/share")
+def goal_share(hid: str, gid: int, body: ShareIn, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    with SessionLocal() as s:
+        g = s.get(GoalRow, gid)
+        if not g or g.household_id != hid:
+            raise HTTPException(404, "goal not found")
+        g.shared = body.shared
+        s.commit()
+    db.audit(w.role, "goal_share", hid, dict(id=gid, shared=body.shared))
+    return dict(ok=True, shared=body.shared)
+
+
+class SuggestIn(BaseModel):
+    target: float = Field(gt=0, le=10_000_000)
+    days: int = Field(180, ge=14, le=1500)
+
+
+@app.post("/api/households/{hid}/goals/suggest")
+def goal_suggest(hid: str, body: SuggestIn, w: Who = Depends(family_or_admin)):
+    """A realistic monthly amount from the forecast: half of the expected monthly surplus."""
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    f = e.current_forecast(hid, st)
+    mean_ess, net, local = e.usual_needs(hid, st)
+    gap = f["gap_p50"] if f else float(e.h.loc[hid, "gap_mean"])
+    amt = f["amt_p50"] if f else float(e.h.loc[hid, "typical_amount"])
+    income_month = amt * 30.0 / max(gap, 7.0) + local * 30.0
+    spend_month = mean_ess * 30.0 + e.bills_monthly(hid, st)
+    surplus = max(income_month - spend_month, 0.0)
+    suggested = round(0.5 * surplus, -1)
+    wanted = body.target / max(body.days / 30.0, 1.0)
+    months = body.target / suggested if suggested > 0 else None
+    return _stamp(dict(suggested_monthly=suggested, needed_monthly=round(wanted),
+                       months_at_suggested=round(months, 1) if months else None,
+                       realistic=bool(suggested and wanted <= suggested * 1.1),
+                       explanation="Half of your expected monthly surplus, so there is room for surprises."))
+
+
+@app.get("/api/households/{hid}/insights")
+def insights(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    due = st["bills_due"]
+    fc = None
+    try:
+        import pandas as pd
+        feat = e.ff[hid][st["last_seq"]]
+        fc = e.model.drivers(pd.DataFrame([feat]), top=5)
+    except Exception:
+        pass
+    sf = e.shortfall(hid, st, _threshold())
+    return _stamp(dict(
+        on_time_rate=round(st["bills_on_time"] / due, 3) if due else None, bills_due=due,
+        late_fees_paid=round(st["late_fees"]), late_fees_avoided=round(st["fees_avoided"]),
+        anomalies_caught=st["anomalies_caught"], overbilling_avoided=round(st["overbilling_avoided"]),
+        savings_built=round(st["buffer"] + sum(st["goals"].values())),
+        forecast_drivers=fc or [], warning_drivers=sf.get("drivers", []) if sf.get("available") else []))

@@ -9,13 +9,15 @@ import time
 
 import pandas as pd
 
-from . import config, db, evaluation, forecast, simulator
+from . import bills as billslib, config, db, evaluation, forecast, sim, simulator
 
 
 def run():
     t0 = time.time()
     print("1/6 generating synthetic data ...")
-    h, r, l = simulator.generate()
+    h, r, l, bdefs, bsched = simulator.generate()
+    bsched = billslib.annotate(bsched, bdefs)
+    bmaps = evaluation._bills_maps(h, bdefs, bsched)
     ds = forecast.build_dataset(h, r)
     ds["split"] = ds["household_id"].map(h.set_index("household_id")["split"])
     tr, ca, te = (ds[ds.split == s] for s in ("train", "cal", "test"))
@@ -36,6 +38,8 @@ def run():
     db.write_frame(h, "households")
     db.write_frame(r, "remittances")
     db.write_frame(l, "ledger", index_cols=["household_id", "day"])
+    db.write_frame(bdefs, "bill_defs", index_cols=["household_id"])
+    db.write_frame(bsched, "bill_schedule", index_cols=["household_id", "due_day"])
     feat = ds[["household_id", "seq"] + forecast.FEATURES]
     db.write_frame(feat, "forecast_features", index_cols=["household_id", "seq"])
     db.write_frame(P_all, "forecasts", index_cols=["household_id", "seq"])
@@ -44,16 +48,18 @@ def run():
     fm = evaluation.forecast_metrics(te, P_te, h[h.split == "test"].reset_index(drop=True))
 
     print("5/6 policy comparison (simulated year, with vs without) ...")
-    cmp_ = evaluation.compare_policies(h, r, l, te, P_te)
+    cmp_ = evaluation.compare_policies(h, r, l, te, P_te, bmaps)
 
     print("6/6 warning quality ...")
-    wm = evaluation.warning_metrics(h, r, l, ds, P_all)
+    wm = evaluation.warning_metrics(h, r, l, ds, P_all, bmaps)
+    bm = evaluation.bill_metrics(h, bsched, bdefs)
+    fs = evaluation.forecast_samples(te, P_te)
 
     report = dict(
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=fm, warning=wm,
+        forecast=dict(fm, samples=fs), warning=wm, bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,
@@ -79,10 +85,12 @@ def write_data_card(h, r):
 - Gap between transfers: regular 28-32 days (sd 2.5); semi 26-34 (sd 7); irregular 22-50 (sd 14). Delayed cycles add 5-25 days (p = 0.05 / 0.12 / 0.22).
 - Amount: lognormal around a household typical value (median 28,000 BDT, clipped 8,000-90,000); log-sd 0.08 / 0.20 / 0.45. 40% of irregular senders send small transfers (x0.5): this is the fairness cohort.
 - Festivals: transfers before Eid are earlier (p = 0.6) and 1.2-1.5x larger; spending spikes around Eid (+100% essentials for 11 days).
-- Essentials = 55-78% of average income; weekday rhythm; lognormal noise. School-fee months (Jan/Jul), ~35%/year chance of a large one-off expense (0.5-1.5x monthly needs).
+- Total needs = 55-78% of average income. Bills & EMIs are carved out of that total: electricity (variable, seasonal: x1.35-1.6 in Apr-Sep, x0.8 in winter), gas, internet (60% of households), motorcycle EMI (40%), school fees (households with children). Due days are fixed per household. ~4% of electricity bills are unusually high (x2.0-3.2): planted anomalies with ground truth.
+- Remaining essentials: weekday rhythm, lognormal noise, split into categories by a per-household Dirichlet share. ~35%/year chance of a large one-off expense (0.5-1.5x monthly needs, categorised as health).
+- Bill estimate = seasonal-naive / trailing-median rule (not a deep model). An anomaly is flagged when a bill exceeds 1.8x its estimate. Late fee = 3% of the bill (min 100).
 - Baseline behaviour: 75-100% of each transfer is cashed out soon after arrival; money in hand above a 5-day cushion is spent down at ~1-3% per day ("cash-in-hand effect").
 - Informal credit covers shortfalls and is repaid at 1.05x on the next arrival.
-- Following a plan removes the cash-in-hand effect; needs money is held in the wallet and released weekly.
+- Following a plan removes the cash-in-hand effect; needs money is held in the wallet and released weekly. Bills are paid on time from a vault funded at each transfer; without a plan they are paid on the due date only if cash is in hand, otherwise late with a fee. Flagged bills are assumed to be reviewed and corrected before the due date.
 
 ## Known limitations
 - Behaviour change under RemitWise is an ASSUMPTION controlled by the compliance level; it is not evidence of a real-world effect.

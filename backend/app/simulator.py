@@ -23,6 +23,8 @@ CLASS_PARAMS = {
 }
 CLASS_PROBS = {"regular": 0.40, "semi": 0.35, "irregular": 0.25}
 WEEKDAY_FACTOR = np.array([1.15, 1.0, 0.95, 0.9, 0.9, 1.0, 1.1])  # mean ~1.0
+# Seasonal multiplier for variable bills (electricity): hot months cost more (assumption).
+SEASON_VAR = {1: 0.8, 2: 0.8, 3: 0.95, 4: 1.35, 5: 1.5, 6: 1.6, 7: 1.6, 8: 1.5, 9: 1.2, 10: 1.0, 11: 0.9, 12: 0.85}
 
 
 def _day_to_ts(day: int) -> pd.Timestamp:
@@ -39,6 +41,7 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
     rng = np.random.default_rng(seed)
     classes = rng.choice(list(CLASS_PROBS), size=n, p=list(CLASS_PROBS.values()))
     hh_rows, ev_rows, led_frames = [], [], []
+    bill_def_rows, bill_sched_rows = [], []
 
     for i in range(n):
         hid = f"H{i + 1:03d}"
@@ -58,6 +61,44 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
         leak_rate = float(rng.uniform(0.10, 0.35))  # cash-in-hand discretionary spend (baseline only)
         cashout_frac = float(rng.uniform(0.75, 1.0))  # baseline: share cashed out soon after arrival
         school = rng.random() < 0.6
+
+        # ---- bills / EMIs (carved out of monthly_needs, so total needs are unchanged) ----
+        bdefs = []
+        def _add(name, kind, share, variable, dom):
+            usual = float(np.round(monthly_needs * share, -1))
+            bdefs.append(dict(household_id=hid, bill_id=f"{hid}-{name.lower().replace(' ', '-')}", name=name,
+                              kind=kind, usual=usual, variable=variable, due_dom=int(dom),
+                              autopay=True, monthly_limit=float(np.round(usual * 2.2, -1))))
+        _add("Electricity", "utility", rng.uniform(0.05, 0.08), True, rng.integers(8, 13))
+        _add("Gas", "utility", rng.uniform(0.02, 0.035), False, 15)
+        if rng.random() < 0.6:
+            _add("Internet", "utility", rng.uniform(0.02, 0.035), False, 5)
+        if rng.random() < 0.4:
+            _add("Motorcycle EMI", "emi", rng.uniform(0.10, 0.18), False, rng.integers(10, 21))
+        if school:
+            _add("School fees", "school", rng.uniform(0.06, 0.10), False, 5)
+        bills_monthly = float(sum(b["usual"] for b in bdefs))
+        cat = rng.dirichlet(np.array([5.0, 1.2, 1.4 if school else 0.4, 0.8, 1.2]))
+
+        sched = []
+        base_m = pd.Timestamp(config.START_DATE).replace(day=1)
+        for m in range(int(np.ceil(n_days / 30)) + 2):
+            for b in bdefs:
+                ts = (base_m + pd.DateOffset(months=m)).replace(day=min(b["due_dom"], 28))
+                di = (ts - pd.Timestamp(config.START_DATE)).days
+                if not 0 <= di < n_days:
+                    continue
+                if b["variable"]:
+                    amt = b["usual"] * SEASON_VAR[ts.month] * rng.lognormal(0, 0.08)
+                else:
+                    amt = b["usual"] * rng.normal(1.0, 0.02)
+                anomaly = bool(b["variable"] and rng.random() < 0.04)
+                if anomaly:
+                    amt *= rng.uniform(2.0, 3.2)
+                sched.append(dict(household_id=hid, bill_id=b["bill_id"], due_day=int(di),
+                                  amount=float(np.round(amt, 0)), anomaly=anomaly))
+        bill_def_rows += bdefs
+        bill_sched_rows += sched
 
         # ---- remittance events ----
         day, seq, prev_day = 0.0, 0, None
@@ -97,30 +138,28 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
         # ---- daily ledger ----
         days = np.arange(n_days)
         dates = pd.to_datetime(config.START_DATE) + pd.to_timedelta(days, unit="D")
-        base = monthly_needs / 30.0
+        base = (monthly_needs - bills_monthly) / 30.0
         essential = base * WEEKDAY_FACTOR[dates.dayofweek] * rng.lognormal(0, 0.15, n_days)
         shock = np.zeros(n_days)
+        shock_cat = np.full(n_days, "", dtype=object)
         # festival spending: ~+100% essentials in the +/-5 day window around Eid
         for eid in EID_DATES:
             d0 = (eid - pd.Timestamp(config.START_DATE)).days
             for d in range(d0 - 5, d0 + 6):
                 if 0 <= d < n_days:
                     shock[d] += base * 1.0
-        # school fees (Jan / Jul, day 5)
-        if school:
-            for d in range(n_days):
-                if dates[d].month in (1, 7) and dates[d].day == 5:
-                    shock[d] += monthly_needs * 0.3
+                    shock_cat[d] = "other"
         # large one-off (medical / wedding / repair), ~35% chance per year
         for yr in range(int(np.ceil(n_days / 365))):
             if rng.random() < 0.35:
                 d = int(yr * 365 + rng.integers(0, 365))
                 if d < n_days:
                     shock[d] += monthly_needs * rng.uniform(0.5, 1.5)
+                    shock_cat[d] = "health"
         local_income = np.full(n_days, local_monthly / 30.0)
 
         led_frames.append(pd.DataFrame(dict(household_id=hid, day=days, date=dates,
-                                            essential=essential.round(1), shock=shock.round(1),
+                                            essential=essential.round(1), shock=shock.round(1), shock_cat=shock_cat,
                                             local_income=local_income.round(1))))
         hh_rows.append(dict(household_id=hid, region=region, size=size, sender_origin=sender_origin,
                             regularity_class=cls, small_sender=bool(small_sender),
@@ -128,6 +167,9 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
                             local_income_monthly=round(local_monthly, 0),
                             monthly_needs=round(monthly_needs, 0), leak_rate=round(leak_rate, 3),
                             cashout_frac=round(cashout_frac, 3), school_children=bool(school),
+                            bills_monthly=round(bills_monthly, 0), cat_food=round(float(cat[0]), 3),
+                            cat_transport=round(float(cat[1]), 3), cat_education=round(float(cat[2]), 3),
+                            cat_health=round(float(cat[3]), 3), cat_other=round(float(cat[4]), 3),
                             sender_id=f"S-{hid}"))
 
     households = pd.DataFrame(hh_rows)
@@ -143,9 +185,11 @@ def generate(seed: int = config.SEED, n: int = config.N_HOUSEHOLDS, n_days: int 
     households["split"] = split
     remittances = pd.DataFrame(ev_rows)
     ledger = pd.concat(led_frames, ignore_index=True)
-    return households, remittances, ledger
+    bill_defs = pd.DataFrame(bill_def_rows)
+    bill_sched = pd.DataFrame(bill_sched_rows)
+    return households, remittances, ledger, bill_defs, bill_sched
 
 
 if __name__ == "__main__":
-    h, r, l = generate()
-    print(h.regularity_class.value_counts().to_dict(), len(r), len(l))
+    h, r, l, bd, bs = generate()
+    print(h.regularity_class.value_counts().to_dict(), len(r), len(l), len(bd), len(bs))
