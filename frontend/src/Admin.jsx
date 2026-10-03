@@ -35,6 +35,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
   const run = (fn, ok) => act(async () => { setMsg(''); try { await fn(); if (ok) setMsg(ok) } catch (e) { setMsg(e.message) } }).catch(() => {})
   const scen = (kind, value = 0, ok) => run(() => api(`/households/${hid}/scenario`, { method: 'POST', body: { kind, value } }), ok)
   const adv = (d, to_arrival = false) => run(() => api(`/households/${hid}/advance`, { method: 'POST', body: { days: d, to_arrival } }))
+  const delUser = async (u) => { if (!window.confirm(`Delete ${u.name}? This permanently removes the account and its goals.`)) return; try { await api(`/admin/users/${u.id}`, { method: 'DELETE' }); loadUsers(); api('/admin/overview').then(setOv) } catch (e) { setErr(e.message) } }
   const setStatus = async (u, active) => { try { await api(`/admin/users/${u.id}/status`, { method: 'POST', body: { active } }); loadUsers(); api('/admin/overview').then(setOv) } catch (e) { setErr(e.message) } }
 
   return (
@@ -49,7 +50,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
       <div className="adminwrap">
         {err && <div className="error" onClick={() => setErr('')}>{err}</div>}
         {tab === 'overview' && <Overview ov={ov} ev={ev} />}
-        {tab === 'users' && <Users users={users} me={me} setStatus={setStatus} />}
+        {tab === 'users' && <Users users={users} me={me} setStatus={setStatus} delUser={delUser} />}
         {tab === 'model' && ev && <Model ev={ev} comp={comp} setComp={setComp} per={per} person={person} />}
         {tab === 'sim' && <Sim {...{ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go }} />}
         {tab === 'audit' && <AuditTab audit={audit} card={card} />}
@@ -93,7 +94,7 @@ function Overview({ ov, ev }) {
   )
 }
 
-function Users({ users, me, setStatus }) {
+function Users({ users, me, setStatus, delUser }) {
   const [q, setQ] = useState('')
   const rows = users.filter((u) => `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(q.toLowerCase()))
   return (
@@ -107,7 +108,7 @@ function Users({ users, me, setStatus }) {
               <td><span className={`chip ${u.role === 'family' ? 'blue' : u.role === 'sender' ? 'amber' : 'green'}`}>{u.role}</span></td>
               <td className="muted">{u.email}</td><td>{u.joined}</td>
               <td>{u.is_active ? <span className="chip green">Active</span> : <span className="chip red">Disabled</span>}</td>
-              <td style={{ textAlign: 'right' }}>{u.id !== me?.id && (u.is_active ? <button className="btn sm redo" onClick={() => setStatus(u, false)}>Disable</button> : <button className="btn sm" onClick={() => setStatus(u, true)}>Enable</button>)}</td></tr>
+              <td style={{ textAlign: 'right' }}>{u.id !== me?.id && (u.is_active ? <button className="btn sm redo" onClick={() => setStatus(u, false)}>Disable</button> : <button className="btn sm" onClick={() => setStatus(u, true)}>Enable</button>)}{u.id !== me?.id && !u.is_demo && <button className="btn sm redo" style={{ marginLeft: 8 }} onClick={() => delUser(u)}>Delete</button>}</td></tr>
           ))}
         </tbody></table>
         {rows.length === 0 && <p className="muted small" style={{ padding: 8 }}>No matching users.</p>}

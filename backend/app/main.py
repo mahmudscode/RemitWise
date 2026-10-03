@@ -990,6 +990,28 @@ class StatusIn(BaseModel):
     active: bool
 
 
+@app.delete("/api/admin/users/{uid}")
+def admin_user_delete(uid: int, w: Who = Depends(admin_only)):
+    if uid == w.uid:
+        raise HTTPException(400, "You cannot delete your own account.")
+    with SessionLocal() as s:
+        u = s.get(db.User, uid)
+        if u is None:
+            raise HTTPException(404, "user not found")
+        if u.is_demo:
+            raise HTTPException(400, "Demo accounts cannot be deleted. Disable them instead.")
+        role, hid = u.role, u.household_id
+        s.query(db.AuthSession).filter(db.AuthSession.user_id == uid).delete()
+        if role == "family" and hid and not s.query(db.User).filter(db.User.household_id == hid, db.User.id != uid, db.User.role == "family").count():
+            for m in (db.Goal, db.Consent, db.SenderLink, db.Decision, db.DemoState):
+                if hasattr(m, "household_id"):
+                    s.query(m).filter(m.household_id == hid).delete()
+        s.delete(u)
+        s.commit()
+    db.audit("admin", "user_deleted", None, dict(user_id=uid, role=role))
+    return dict(ok=True, id=uid)
+
+
 @app.post("/api/admin/users/{uid}/status")
 def admin_user_status(uid: int, body: StatusIn, w: Who = Depends(admin_only)):
     if uid == w.uid:
