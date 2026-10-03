@@ -111,7 +111,17 @@ export default function App() {
               {clock}
               {role === 'admin' && <div className="viewas">Previewing a demo household<button className="link" onClick={() => go('sender')}>Preview sender view →</button><button className="link" onClick={() => go('admin')}>Back to admin console →</button></div>}
               {role === 'admin' && <select value={hid} onChange={(e) => setHid(e.target.value)}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select>}
-              <div className="me"><Avatar text={me.name} /><div className="grow"><b>{me.name}</b><small>{ROLE_LABEL[role]}</small></div><button className="link gray" onClick={logout}>Log out</button></div>
+              {(() => {
+                const displayName = (role === 'admin' && person?.name) ? person.name : me.name
+                const displayRole = (role === 'admin' && page !== 'admin') ? 'Family wallet' : ROLE_LABEL[role]
+                return (
+                  <div className="me">
+                    <Avatar text={displayName} />
+                    <div className="grow"><b>{displayName}</b><small>{displayRole}</small></div>
+                    <button className="link gray" onClick={logout}>Log out</button>
+                  </div>
+                )
+              })()}
             </div>
           </aside>
           <main className="main">

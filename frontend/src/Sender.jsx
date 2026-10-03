@@ -24,7 +24,7 @@ export default function Sender({ hid, state, tick, H, act, person, go, me, logou
   const header = (
     <>
       <div className="topbar desk"><div className="row"><span className="logo">R</span><b style={{ fontSize: 20 }}>RemitWise</b></div>
-        <div className="row"><span className="muted small">{me?.name} · Sender view · {person?.sender_city}</span>{me?.role === 'admin' && <button className="btn sm" onClick={() => go('home')}>Switch to family view</button>}<button className="btn sm" onClick={logout}>Log out</button></div></div>
+        <div className="row"><span className="muted small">{(me?.role === 'sender' ? me.name : person?.sender_name) || 'Rahim'} · Sender view · {person?.sender_city || 'Dubai'}</span>{me?.role === 'admin' && <button className="btn sm" onClick={() => go('home')}>Switch to family view</button>}<button className="btn sm" onClick={logout}>Log out</button></div></div>
       <div className="senderhead"><div className="row between"><span className="small" style={{ opacity: .85 }}>Sender view</span><button className="btn sm" style={{ background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.5)' }} onClick={me?.role === 'admin' ? () => go('home') : logout}>{me?.role === 'admin' ? 'Family view' : 'Log out'}</button></div>
         <h1 style={{ fontSize: 26, margin: '6px 0 2px' }}>Hi {me?.role === 'sender' ? me.name.split(' ')[0] : person?.sender_name} 👋</h1><p style={{ opacity: .85 }}>Here is how your family is doing back home.</p></div>
     </>
