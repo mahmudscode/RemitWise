@@ -12,7 +12,7 @@ Planning docs are in [docs/](docs/). **All data is synthetic; no real PII.**
 | Shortfall early warning | `backend/app/risk.py` | Monte-Carlo projection + rule-trace drivers |
 | Policy replay (with vs without) | `backend/app/sim.py` | Baseline vs fixed 50/30/20 vs RemitWise at 60/80/100% compliance |
 | Bills, EMI and auto-pay | `backend/app/bills.py`, `live.py` | Bill vault, on-time payment, unusual-bill review, mandates with limits |
-| Grounded summaries | `backend/app/explain.py` | Groq LLM → number validation → template fallback (EN + Bangla) |
+| Grounded summaries | `backend/app/explain.py` | Groq LLM → number validation → template fallback (English) |
 | API with server-side consent | `backend/app/main.py` | FastAPI; sender endpoints return goal progress only |
 | App | `frontend/` | Responsive app built from the Figma design in `docs/DESINE/`: family app (Home, Payments, Plan, Goals, Insights), sender view, admin console (React + Vite) |
 

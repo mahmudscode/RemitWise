@@ -94,7 +94,7 @@ def write_data_card(h, r):
 
 ## Known limitations
 - Behaviour change under RemitWise is an ASSUMPTION controlled by the compliance level; it is not evidence of a real-world effect.
-- Real remittance patterns, exchange-rate shocks and family dynamics may differ. Bangla text needs native review.
+- Real remittance patterns, exchange-rate shocks and family dynamics may differ.
 """
     (config.ARTIFACTS / "data_card.md").write_text(txt)
 

@@ -506,7 +506,7 @@ def request_more(sid: str, body: VisReq, w: Who = Depends(sender_only)):
 # ---------------- explanation ----------------
 @app.get("/api/households/{hid}/summary")
 def summary(hid: str, type: str = Query("plan", pattern="^(plan|warning|progress|monthly)$"),
-            lang: str = Query("en", pattern="^(en|bn)$"), w: Who = Depends(family_or_admin)):
+            lang: str = Query("en", pattern="^en$"), w: Who = Depends(family_or_admin)):
     _check(hid)
     e = _eng()
     st = e.get(hid)
@@ -587,8 +587,7 @@ def _month_facts(e: Engine, hid: str, st: dict) -> dict:
         suggestion = "set a small daily spending limit in the week before the next transfer."
     return dict(on_time_pct=pct, late_fees_avoided=round(st["fees_avoided"]),
                 savings_built=round(st["buffer"] + sum(st["goals"].values())),
-                suggestion=suggestion,
-                suggestion_bn="বিলের জন্য আগে টাকা আলাদা রাখুন।" if st["shortfall_days"] == 0 else "পরের টাকা আসার আগের সপ্তাহে দৈনিক খরচের সীমা ঠিক করুন।")
+                suggestion=suggestion)
 
 
 # ---------------- Home / Plan / Payments / Goals / Insights (family app) ----------------

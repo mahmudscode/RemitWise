@@ -21,7 +21,7 @@ const hashPage = () => location.hash.replace(/^#\/?/, '').split('/')[0]
 export default function App() {
   const [auth, setAuth] = useState({ status: getToken() ? 'loading' : 'out', user: null })
   const [page, setPage] = useState('home')
-  const [lang, setLang] = useState('en')
+  const lang = 'en'
   const [hh, setHh] = useState([])
   const [hid, setHid] = useState('')
   const [state, setState] = useState(null)
@@ -92,8 +92,7 @@ export default function App() {
     <div className="clockbox">
       <button className="x row between" style={{ width: '100%', color: '#fff', opacity: 1 }} onClick={() => setClockOpen(!clockOpen)}><span>Demo clock · <b>{fmtDate(state.date)}</b></span><span style={{ marginLeft: 12 }}>{clockOpen ? '–' : '+'}</span></button>
       {clockOpen && <div className="btns"><button className="go" onClick={() => advance(1, true)}>Trigger remittance</button><button onClick={() => advance(1)}>+1 day</button><button onClick={() => advance(7)}>+7 days</button>
-        {role === 'admin' && <button onClick={() => go('admin')}>Admin console</button>}
-        <button onClick={() => setLang(lang === 'en' ? 'bn' : 'en')}>{lang === 'en' ? 'বাংলা' : 'English'}</button></div>}
+        {role === 'admin' && <button onClick={() => go('admin')}>Admin console</button>}</div>}
     </div>
   )
 
