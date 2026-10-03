@@ -555,3 +555,13 @@ def test_admin_cannot_disable_self_and_family_cannot_use_it(client):
     assert client.post(f"/api/admin/users/{me['id']}/status", json=dict(active=False), headers=H("admin", "")).status_code == 400
     fam = _register(client, "family")[0].json()
     assert client.post(f"/api/admin/users/{me['id']}/status", json=dict(active=False), headers=_bearer(fam["token"])).status_code == 403
+
+
+def test_new_family_sees_a_forecast_on_the_first_screen(client):
+    d = _register(client, "family")[0].json()
+    hid, tok = d["user"]["household_id"], d["token"]
+    fc = client.get(f"/api/households/{hid}/forecast", headers=_bearer(tok))
+    assert fc.status_code == 200 and fc.json()["forecast"]["rem_p90"] > 0
+    home = client.get(f"/api/households/{hid}/home", headers=_bearer(tok)).json()
+    assert home["safe"] is not None  # not "Available once a forecast exists"
+    assert client.get(f"/api/households/{hid}/plan/projection", headers=_bearer(tok)).status_code == 200

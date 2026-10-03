@@ -103,8 +103,11 @@ class Engine:
         """First arrival (seq >= 3) that is a normal-sized transfer, so the demo starts on a main remittance."""
         if hid not in self._start:
             ev, typ = self.ev[hid], float(self.h.loc[hid, "typical_amount"])
-            ok = ev[(ev.seq >= DEMO_START_SEQ) & (ev.amount >= 0.6 * typ)]
-            ok = ok[ok.seq.isin(self.fc.get(hid, {}).keys())]
+            # start on a normal transfer whose PREVIOUS arrival already has a forecast, so a new household
+            # sees "next remittance", "safe to spend" and the projection from the very first screen
+            have = self.fc.get(hid, {}).keys()
+            ok = ev[(ev.seq >= DEMO_START_SEQ + 1) & (ev.amount >= 0.6 * typ)]
+            ok = ok[ok.seq.isin(have) & (ok.seq - 1).isin(have)]
             self._start[hid] = int(ok.seq.iloc[0]) if len(ok) else DEMO_START_SEQ
         return self._start[hid]
 

@@ -87,8 +87,9 @@ export default function App() {
   if (auth.status === 'error') return <div style={{ padding: 24, maxWidth: 560 }}><div className="error">{auth.msg}</div><p className="muted small" style={{ margin: '10px 0' }}>You are still signed in. Your data is safe on the server.</p><button className="btn primary" onClick={() => { setAuth({ status: 'loading', user: null }); setRetry((x) => x + 1) }}>Try again</button></div>
   if (auth.status === 'out') return <Auth onAuthed={onAuthed} />
 
+  // The demo clock lives in the layout (sidebar on desktop, top of the page on phones) so it never floats over content.
   const clock = state && page !== 'admin' && role !== 'sender' && (
-    <div className="clock">
+    <div className="clockbox">
       <button className="x row between" style={{ width: '100%', color: '#fff', opacity: 1 }} onClick={() => setClockOpen(!clockOpen)}><span>Demo clock · <b>{fmtDate(state.date)}</b></span><span style={{ marginLeft: 12 }}>{clockOpen ? '–' : '+'}</span></button>
       {clockOpen && <div className="btns"><button className="go" onClick={() => advance(1, true)}>Trigger remittance</button><button onClick={() => advance(1)}>+1 day</button><button onClick={() => advance(7)}>+7 days</button>
         {role === 'admin' && <button onClick={() => go('admin')}>Admin console</button>}
@@ -108,6 +109,7 @@ export default function App() {
             <div className="brand"><span className="logo">R</span>RemitWise</div>
             {NAV.map(([k, label]) => <button key={k} className={`nav ${page === k ? 'on' : ''}`} onClick={() => go(k)}><Icon name={k} />{label}</button>)}
             <div className="sidefoot">
+              {clock}
               {role === 'admin' && <div className="viewas">Previewing a demo household<button className="link" onClick={() => go('sender')}>Preview sender view →</button><button className="link" onClick={() => go('admin')}>Back to admin console →</button></div>}
               {role === 'admin' && <select value={hid} onChange={(e) => setHid(e.target.value)}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select>}
               <div className="me"><Avatar text={me.name} /><div className="grow"><b>{me.name}</b><small>{ROLE_LABEL[role]}</small></div><button className="link gray" onClick={logout}>Log out</button></div>
@@ -118,13 +120,13 @@ export default function App() {
               {role === 'admin' ? <select value={hid} onChange={(e) => setHid(e.target.value)} style={{ width: 'auto' }}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select> : <span className="small muted">Signed in as <b>{me.name}</b></span>}
               <span>{role === 'admin' && <button className="link" onClick={() => go('admin')}>Admin console</button>}<button className="link gray" onClick={logout}>Log out</button></span>
             </div>
+            <div className="only-mobile" style={{ marginBottom: 12 }}>{clock}</div>
             <Page {...ctx} openAdd={openAdd} clearAdd={() => setOpenAdd(false)} />
             <p className="tiny muted" style={{ textAlign: 'center', marginTop: 24 }}>Synthetic data only. No real money or customer data.</p>
           </main>
           <nav className="bottomnav">{NAV.map(([k, label]) => <button key={k} className={page === k ? 'on' : ''} onClick={() => go(k)}><Icon name={k} />{label}</button>)}</nav>
         </div>
       )}
-      {clock}
       {showModal && <RemittanceModal {...ctx} onClose={() => setDismissed(state.pending.seq)} />}
     </>
   )
