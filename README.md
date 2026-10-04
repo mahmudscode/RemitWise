@@ -5,7 +5,7 @@ An AI planner for families who live on remittance income. Built for **AI Hackath
 
 - Live deployment: [https://frontend-acme-372b.vercel.app/](https://frontend-acme-372b.vercel.app/) (see [Deployment](#deployment))
 - Demo video: [https://youtu.be/7KCWNhKgXQs?si=4cXdWQPZ5gCs5-01](https://youtu.be/7KCWNhKgXQs?si=4cXdWQPZ5gCs5-01)
-- Narration subtitles and screenshots: [demo/](demo/)
+]
 - Planning and design docs: [docs/](docs/)
 
 ## 1. Project overview
