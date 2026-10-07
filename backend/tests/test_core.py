@@ -1155,3 +1155,42 @@ def test_login_is_rate_limited_per_account_and_client(client):
 def test_kpi_base_volumes_are_saved_for_the_business_view():
     k = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["kpi_base"]
     assert k["households"] > 0 and 1 <= k["bills_per_household_month"] <= 10 and k["monthly_remittance"] > 5000
+
+
+# ---------- monitoring ----------
+def test_psi_detects_shift_and_ignores_noise():
+    import numpy as np
+    from app import monitoring
+    rng = np.random.default_rng(0)
+    a = rng.normal(0, 1, 5000)
+    assert monitoring.psi(a, rng.normal(0, 1, 2000)) < 0.1
+    assert monitoring.psi(a, rng.normal(1.5, 1, 2000)) > 0.25
+    assert np.isnan(monitoring.psi(a[:5], a))
+
+
+def test_monitoring_panel_is_admin_only_and_flags_the_weak_group(client):
+    hid = _hid(client)
+    assert client.get("/api/admin/monitoring", headers=H("family", hid)).status_code == 403
+    r = client.get("/api/admin/monitoring", headers=H("admin", ""))
+    assert r.status_code == 200
+    m = r.json()
+    assert len(m["rolling"]) >= 4 and m["window"]["cycles"] > 500
+    assert {g["group"] for g in m["groups"]} >= {"regular", "irregular", "rural", "urban"}
+    assert {d["feature"] for d in m["drift"]} >= {"last_gap", "amt_mean_all"}
+    assert all(d["status"] in ("stable", "watch", "alert") for d in m["drift"])
+    irregular = next(g for g in m["groups"] if g["group"] == "irregular")
+    regular = next(g for g in m["groups"] if g["group"] == "regular")
+    assert irregular["gap_mae"] > regular["gap_mae"]  # harder group is visible
+    assert m["warning_rate"]["households"] >= 1
+
+
+def test_monitoring_flags_low_coverage(monkeypatch):
+    import pandas as pd
+    from app import monitoring
+    m = monitoring._frame()
+    bad = m.copy()
+    bad.loc[bad.regularity_class == "regular", "gap_in"] = False  # pretend the regular group's ranges all fail
+    monkeypatch.setattr(monitoring, "_frame", lambda: bad)
+    out = monitoring.compute()
+    flagged = [g for g in out["groups"] if g["group"] == "regular"][0]
+    assert any("below 70%" in f for f in flagged["flags"]) and any("regular" in a for a in out["alerts"])

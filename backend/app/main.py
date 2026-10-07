@@ -17,7 +17,7 @@ from sqlalchemy.exc import OperationalError
 from pydantic import BaseModel, Field
 
 from . import allocator, auth, config, db, explain
-from .db import Consent, Decision, Goal as GoalRow, SenderLink, SessionLocal, SummaryCache
+from .db import Consent, Decision, DemoState, Goal as GoalRow, SenderLink, SessionLocal, SummaryCache
 from .live import Engine
 
 ENGINE: Engine | None = None
@@ -1149,6 +1149,30 @@ def admin_overview(w: Who = Depends(admin_only)):
                     model="lightgbm quantile + conformal", data_seed=config.SEED, trained_at=ev.get("generated_at"),
                     households_trained_on=ev.get("dataset", {}).get("households")),
         privacy="Aggregates only. Admins cannot see a registered family's balances, bills or goals.")
+
+
+def _warning_rate() -> dict:
+    """Share of active (in-use) households whose warning is amber or red right now."""
+    e = _eng()
+    with SessionLocal() as s:
+        ids = [h for (h,) in s.query(DemoState.household_id).all()]
+    counts = dict(green=0, amber=0, red=0, unavailable=0)
+    for hid in ids:
+        if hid not in e.h.index:
+            continue
+        try:
+            sf = e.shortfall(hid, e.get(hid), _threshold())
+            counts[sf["severity"] if sf.get("available") else "unavailable"] += 1
+        except Exception:
+            counts["unavailable"] += 1
+    n = sum(counts.values())
+    return dict(households=n, **counts, rate=round((counts["amber"] + counts["red"]) / n, 3) if n else None)
+
+
+@app.get("/api/admin/monitoring")
+def admin_monitoring(w: Who = Depends(admin_only)):
+    from . import monitoring
+    return monitoring.cached(_warning_rate)
 
 
 @app.get("/api/admin/users")

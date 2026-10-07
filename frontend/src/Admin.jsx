@@ -5,7 +5,7 @@ import { GUIDED } from './Guided.jsx'
 
 const COMPLIANCE = [0.6, 0.8, 1.0]
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1))
-const TABS = [['overview', 'Overview'], ['users', 'Users'], ['model', 'Model performance'], ['sim', 'Simulation sandbox'], ['audit', 'Audit & data']]
+const TABS = [['overview', 'Overview'], ['users', 'Users'], ['model', 'Model performance'], ['monitor', 'Monitoring'], ['sim', 'Simulation sandbox'], ['audit', 'Audit & data']]
 const EV = {
   arrival: (e) => [`Remittance ${taka(e.amount)} received`, 'var(--green)'], auto_skip: () => ['Plan skipped (money added to wallet)', 'var(--muted)'],
   bill_paid: (e) => [`${e.name} ${taka(e.amount)} auto-paid`, 'var(--primary)'], bill_paid_late: (e) => [`${e.name} paid late`, 'var(--amber)'],
@@ -58,6 +58,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
         {tab === 'overview' && <Overview ov={ov} ev={ev} />}
         {tab === 'users' && <Users users={users} me={me} setStatus={setStatus} delUser={delUser} />}
         {tab === 'model' && ev && <Model ev={ev} comp={comp} per={per} person={person} />}
+        {tab === 'monitor' && <Monitoring />}
         {tab === 'sim' && <Sim {...{ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go, guided }} />}
         {tab === 'audit' && <AuditTab audit={audit} card={card} />}
       </div>
@@ -270,6 +271,56 @@ function Kpis({ ev }) {
         <span className="muted small"> = bill-payment fees {taka(feeYear)} ({extraPay.toFixed(1)} extra payments × ৳{n(a.fee)} × 12) + value of held money {taka(floatYear)} ({taka(extraKept)} × 12 × {n(a.daysHeld)}/365 × {n(a.floatRate)}%)</span></p>
       <p className="tiny muted" style={{ marginTop: 6 }}>Volumes come from {kb.households} synthetic test households ({kb.bills_per_household_month} bills and {taka(kb.monthly_remittance)} of remittances per household per month). See docs/pilot-plan.md for how a randomized pilot would measure the real effect.</p>
     </section>
+  )
+}
+
+function Monitoring() {
+  const [m, setM] = useState(null)
+  const [err, setErr] = useState('')
+  useEffect(() => { api('/admin/monitoring').then(setM).catch((e) => setErr(e.message)) }, [])
+  if (err) return <div className="error">{err}</div>
+  if (!m) return <p className="muted">Loading…</p>
+  const o = m.overall, wr = m.warning_rate
+  const tone = (ok) => (ok ? 'txt-green' : 'txt-red')
+  return (
+    <div className="stackv">
+      <div><h1 style={{ fontSize: 24 }}>Model monitoring</h1><p className="muted small">{m.window.note} {m.window.cycles.toLocaleString()} transfers from {m.window.households} households.</p></div>
+      {m.alerts.length > 0
+        ? <section className="card red"><h2 className="txt-red">🚩 {m.alerts.length} flag{m.alerts.length > 1 ? 's' : ''} to review</h2><ul className="why small">{m.alerts.map((a) => <li key={a}>{a}</li>)}</ul></section>
+        : <section className="card green"><h2 className="txt-green">No flags: coverage and error are within limits.</h2></section>}
+      <div className="grid4 tiles">
+        <Tile label="Timing error (MAE)" value={`${f1(o.gap_mae)} days`} foot="recent window" tone="txt-blue" />
+        <Tile label="Timing range coverage" value={pct(o.gap_coverage)} foot={`target 80%, flag below ${pct(m.thresholds.min_coverage)}`} tone={tone(o.gap_coverage >= m.thresholds.min_coverage)} />
+        <Tile label="Amount range coverage" value={pct(o.amt_coverage)} foot={`amount error ${pct(o.amt_mape)}`} tone={tone(o.amt_coverage >= m.thresholds.min_coverage)} />
+        <Tile label="Warning rate now" value={wr?.rate == null ? '–' : pct(wr.rate)} foot={wr ? `${wr.amber + wr.red} of ${wr.households} active households amber or red` : ''} tone="txt-amber" />
+      </div>
+      <section className="card">
+        <h2>Rolling error (30-day periods)</h2>
+        <div style={{ height: 220 }}><ResponsiveContainer><ComposedChart data={m.rolling}>
+          <CartesianGrid vertical={false} stroke="#eef2f6" /><XAxis dataKey="period" fontSize={11} tickLine={false} /><YAxis yAxisId="l" fontSize={11} width={30} tickLine={false} axisLine={false} /><YAxis yAxisId="r" orientation="right" domain={[0.5, 1]} fontSize={11} width={36} tickLine={false} axisLine={false} tickFormatter={(v) => pct(v)} /><Tooltip /><Legend />
+          <Line yAxisId="l" isAnimationActive={false} dataKey="gap_mae" name="Timing error (days)" stroke="#0d56a5" strokeWidth={2.5} dot={false} />
+          <Line yAxisId="r" isAnimationActive={false} dataKey="gap_coverage" name="Timing coverage" stroke="#1e9e63" strokeWidth={2.5} dot={false} />
+          <ReferenceLine yAxisId="r" y={m.thresholds.min_coverage} stroke="#d14343" strokeDasharray="4 3" />
+        </ComposedChart></ResponsiveContainer></div>
+      </section>
+      <div className="grid2e">
+        <section className="card" style={{ overflowX: 'auto' }}>
+          <h2>Fairness by group</h2>
+          <table><thead><tr><th>Group</th><th>Transfers</th><th>Timing error</th><th>Coverage</th><th /></tr></thead><tbody>
+            {m.groups.map((g) => <tr key={g.dimension + g.group}><td>{g.group} <span className="tiny muted">({g.dimension.toLowerCase()})</span></td><td>{g.n}</td><td>{f1(g.gap_mae)} d</td><td className={tone(g.gap_coverage >= m.thresholds.min_coverage)}>{pct(g.gap_coverage)}</td><td>{g.flags.length ? <span className="chip red">🚩 flag</span> : <span className="chip green">ok</span>}</td></tr>)}
+          </tbody></table>
+          <p className="tiny muted" style={{ marginTop: 6 }}>Flag: coverage below {pct(m.thresholds.min_coverage)}, or timing error above {m.thresholds.error_ratio}× the other groups.</p>
+        </section>
+        <section className="card" style={{ overflowX: 'auto' }}>
+          <h2>Input drift vs training data</h2>
+          <table><thead><tr><th>Feature</th><th>PSI</th><th>Mean shift</th><th /></tr></thead><tbody>
+            {m.drift.map((d) => <tr key={d.feature}><td>{d.feature.replace(/_/g, ' ')}</td><td>{d.psi ?? '–'}</td><td>{d.mean_shift_sd > 0 ? '+' : ''}{d.mean_shift_sd} sd</td><td><span className={`chip ${d.status === 'alert' ? 'red' : d.status === 'watch' ? 'amber' : 'green'}`}>{d.status}</span></td></tr>)}
+          </tbody></table>
+          <p className="tiny muted" style={{ marginTop: 6 }}>PSI under {m.thresholds.psi_watch} is stable; over {m.thresholds.psi_alert} means the inputs have shifted.</p>
+        </section>
+      </div>
+      <section className="card info small">{m.note} Irregular senders are the group to watch: the model is least certain about them, which is also why their ranges are wider.</section>
+    </div>
   )
 }
 
