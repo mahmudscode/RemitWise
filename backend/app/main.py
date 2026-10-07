@@ -220,6 +220,26 @@ def scenario(hid: str, body: Scenario, w: Who = Depends(admin_only)):
     return _stamp(_public_state(hid, st))
 
 
+class GuidedStep(BaseModel):
+    step: int = Field(ge=1, le=5)
+
+
+@app.post("/api/households/{hid}/demo/step")
+def guided_step(hid: str, body: GuidedStep, w: Who = Depends(admin_only)):
+    """Guided demo: runs one step of remittance -> allocation -> unusual bill -> warning -> resolution."""
+    _check(hid)
+    _demo_only(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st, info = e.guided_step(hid, st, body.step, _threshold())
+    except ValueError as ex:
+        raise HTTPException(409, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, "guided_demo_step", hid, dict(step=body.step))
+    return _stamp(dict(info, step=body.step, state=_public_state(hid, st)))
+
+
 @app.post("/api/households/{hid}/reset")
 def reset(hid: str, w: Who = Depends(admin_only)):
     _check(hid)

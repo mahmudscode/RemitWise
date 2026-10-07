@@ -59,7 +59,7 @@ export default function RemittanceModal({ hid, state, person, H, act, onClose })
         <Row color="var(--green)" title={t('Daily needs')} sub={t('Covers ~{n} days', { n: Math.round(cur.needs / dailyNet) })} value={cur.needs} />
         <Row color="var(--amber)" title={t('Emergency fund')} sub={t('Now {n} months saved', { n: months.toFixed(1) })} value={cur.savings} />
         {goalRows.length === 0 && <Row color="var(--purple)" title={t('Goals')} sub={t('Nothing this time')} value={cur.goals} />}
-        {goalRows.map(([name, amt]) => <Row key={name} color="var(--purple)" title={t('Goal: {name}', { name })} sub={goalInfo[name] ? t('{n}% of target', { n: Math.round(goalInfo[name].pct) }) : ''} value={edit ? (amt / gsum) * cur.goals : amt} />)}
+        {goalRows.map(([name, amt]) => <Row key={name} color="var(--purple)" title={t('Goal: {name}', { name: tb(name) })} sub={goalInfo[name] ? t('{n}% of target', { n: Math.round(goalInfo[name].pct) }) : ''} value={edit ? (amt / gsum) * cur.goals : amt} />)}
       </div>
       <div className="card info" style={{ marginTop: 12, padding: '12px 14px', fontSize: 14 }}>
         {t('Based on your next transfer expected in {a}–{b} days, {bills}{emi} due before then. You can adjust any amount.', { a: Math.round(f.gap_p10), b: Math.round(f.gap_p90), bills: t(nBills === 1 ? '{n} bill' : '{n} bills', { n: nBills }), emi: nEmi ? t(' and {n} EMI', { n: nEmi }) : '' })}

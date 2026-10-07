@@ -638,3 +638,40 @@ def test_bangla_warning_template_uses_driver_text():
                                 drivers=[dict(factor="medical_emergency", amount=8000, detail="x", magnitude=0.7)]))
     txt = explain.template("warning", facts, "bn")
     assert "70%" in txt and "৳8,000" in txt
+
+
+# ---------- guided demo: remittance -> allocation -> unusual bill -> warning -> resolution ----------
+def _step(client, hid, n):
+    r = client.post(f"/api/households/{hid}/demo/step", json=dict(step=n), headers=H("admin", ""))
+    assert r.status_code == 200, (n, r.text)
+    return r.json()
+
+
+def test_guided_demo_runs_from_a_fresh_household_for_every_demo_household(client):
+    from app import main
+    for hid in list(main.ENGINE.demo_ids):
+        client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+        s1 = _step(client, hid, 1)
+        assert s1["open"] == "home" and s1["state"]["pending"]
+        s2 = _step(client, hid, 2)
+        assert s2["state"]["pending"] is None and s2["state"]["vault"] >= 0
+        s3 = _step(client, hid, 3)
+        assert s3["open"] == "payments"
+        bills = client.get(f"/api/households/{hid}/bills", headers=H("family", hid)).json()["items"]
+        assert any(b["display_status"] == "needs_review" for b in bills)
+        s4 = _step(client, hid, 4)
+        assert s4["open"] == "home" and s4["severity"] in ("amber", "red")
+        sf = client.get(f"/api/households/{hid}/shortfall", headers=H("family", hid)).json()
+        assert sf["severity"] != "green" and sf["drivers"]
+        s5 = _step(client, hid, 5)
+        assert s5["open"] == "plan"
+        assert client.get(f"/api/households/{hid}/state", headers=H("family", hid)).status_code == 200
+
+
+def test_guided_demo_is_admin_only_and_gives_clear_errors(client):
+    hid = _hid(client)
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    assert client.post(f"/api/households/{hid}/demo/step", json=dict(step=1), headers=H("family", hid)).status_code == 403
+    r = client.post(f"/api/households/{hid}/demo/step", json=dict(step=2), headers=H("admin", ""))
+    assert r.status_code == 409 and "step 1" in r.json()["detail"]
+    assert client.post(f"/api/households/{hid}/demo/step", json=dict(step=9), headers=H("admin", "")).status_code == 422

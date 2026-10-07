@@ -37,6 +37,12 @@ export function AI({ label = 'AI estimate', title = 'Why this estimate?', why, t
   )
 }
 
+/** Placeholder shown while a card's data loads, so cards do not flash "collecting history" text. */
+export const Skel = ({ lines = 2, block }) => (
+  <div className="skelwrap" aria-busy="true" aria-label="Loading">
+    {block ? <div className="skel" style={{ height: block }} /> : Array.from({ length: lines }).map((_, i) => <div key={i} className="skel" style={{ height: i === 0 ? 26 : 12, width: i === 0 ? '70%' : i === lines - 1 ? '45%' : '90%' }} />)}
+  </div>
+)
 export const Bar = ({ pct, tone = '' }) => <div className={`bar ${tone}`}><div style={{ width: `${Math.max(0, Math.min(pct, 100))}%` }} /></div>
 export const Toggle = ({ checked, onChange, label }) => (
   <label className="row" style={{ gap: 10 }}>{label && <span className="grow small">{label}</span>}<span className="toggle"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /><i /></span></label>

@@ -74,7 +74,7 @@ const BACKEND = {
   "The family's forecast now reflects your planned transfer (a heuristic, not a promise).": 'পরিবারের পূর্বাভাসে এখন আপনার পরিকল্পিত ট্রান্সফার ধরা হয়েছে (এটি একটি আনুমানিক হিসাব, প্রতিশ্রুতি নয়)।',
   'generated explanation': 'তৈরি করা ব্যাখ্যা',
   Electricity: 'বিদ্যুৎ', Gas: 'গ্যাস', Internet: 'ইন্টারনেট', 'Phone EMI': 'ফোনের কিস্তি', 'Motorcycle EMI': 'মোটরসাইকেলের কিস্তি',
-  'School fees': 'স্কুলের ফি', Water: 'পানি', Rent: 'বাড়িভাড়া',
+  'School fees': 'স্কুলের ফি', 'House repair': 'বাড়ি মেরামত', 'Education fund': 'শিক্ষা তহবিল', Water: 'পানি', Rent: 'বাড়িভাড়া',
 }
 
 export function tb(text) {
@@ -91,6 +91,10 @@ export function tb(text) {
 
 const BN = {
   // navigation and roles
+  'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
+  'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',
+  'Still trying… (attempt {n})': 'এখনও চেষ্টা চলছে… (প্রচেষ্টা {n})',
+  'Retry now': 'এখনই আবার চেষ্টা করুন',
   'for upay': 'উপায়-এর জন্য',
   Home: 'হোম', Payments: 'পেমেন্ট', Plan: 'পরিকল্পনা', Goals: 'লক্ষ্য', Insights: 'অন্তর্দৃষ্টি',
   'Family wallet': 'পারিবারিক ওয়ালেট', 'Sender abroad': 'প্রবাসী প্রেরক', Administrator: 'অ্যাডমিনিস্ট্রেটর', Family: 'পরিবার',

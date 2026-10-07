@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, fmtDate, pct, taka } from './api'
+import { GUIDED } from './Guided.jsx'
 
 const COMPLIANCE = [0.6, 0.8, 1.0]
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1))
@@ -16,7 +17,7 @@ const EV = {
 }
 const CHECKS = ['Synthetic data only', 'Feature explanations on every forecast', 'Auto-pay only under family mandates', 'Human confirmation above limits', 'LLM explains, never decides', 'Prompt-injection guard', 'Consent-based sharing with sender', 'Admins see aggregates, never a family\'s finances']
 
-export default function Admin({ hid, state, act, tick, person, go, hh, setHid, logout, me }) {
+export default function Admin({ hid, state, act, tick, person, go, hh, setHid, logout, me, guided }) {
   const [tab, setTab] = useState('overview')
   const [ov, setOv] = useState(null)
   const [users, setUsers] = useState([])
@@ -54,7 +55,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
         {tab === 'overview' && <Overview ov={ov} ev={ev} />}
         {tab === 'users' && <Users users={users} me={me} setStatus={setStatus} delUser={delUser} />}
         {tab === 'model' && ev && <Model ev={ev} comp={comp} per={per} person={person} />}
-        {tab === 'sim' && <Sim {...{ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go }} />}
+        {tab === 'sim' && <Sim {...{ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go, guided }} />}
         {tab === 'audit' && <AuditTab audit={audit} card={card} />}
       </div>
     </div>
@@ -204,11 +205,30 @@ function WarningTuning({ w }) {
   )
 }
 
-function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go }) {
+function Guided({ guided }) {
+  const last = guided.last
+  const step = (n) => guided.run(n)
+  return (
+    <section className="card">
+      <h2>Guided demo</h2>
+      <p className="small muted" style={{ margin: '6px 0 10px' }}>The judge path on the selected household. Press <b>Reset household</b> below, then 1 to 5 in order. Each step opens the family screen it is about; use “Back to admin console” in the sidebar to continue.</p>
+      <div className="guided">
+        {GUIDED.map(([title, hint], i) => (
+          <button key={title} className={`btn block step ${last === i + 1 ? 'primary' : ''}`} onClick={() => step(i + 1)} title={hint}>
+            <span className="num">{i + 1}</span><span><b>{title}</b><br /><small style={{ fontWeight: 400, opacity: .85 }}>{hint}</small></span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go, guided }) {
   const events = [...state.log].reverse().filter((e) => EV[e.type]).slice(0, 10)
   return (
     <div className="simwrap" style={{ padding: 0 }}>
       <div className="stackv" style={{ alignSelf: 'start' }}>
+        <Guided guided={guided} />
         <section className="card">
           <h2>Simulation sandbox</h2>
           <p className="small muted" style={{ margin: '6px 0' }}>Try situations on synthetic demo households before they could ever touch a real family. Real accounts are never affected.</p>
@@ -225,7 +245,7 @@ function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMor
             <button className="btn block" onClick={() => scen('high_bill', 0, 'The next electricity bill will be unusually high.')}>Inject unusually high bill (electricity)</button>
             <p className="small" style={{ margin: '6px 0 0', fontWeight: 700 }}>Other</p>
             <button className="btn block" onClick={() => scen('new_emi', 0, 'A new phone EMI mandate was added.')}>Add new EMI</button>
-            <button className="btn block ghost" onClick={() => run(() => api(`/households/${hid}/reset`, { method: 'POST' }), 'Household reset.')}>Reset household</button>
+            <button className="btn block ghost" onClick={() => { guided.setLast(0); run(() => api(`/households/${hid}/reset`, { method: 'POST' }), 'Household reset.') }}>Reset household</button>
             <button className="link" onClick={() => setMore(!more)}>{more ? 'Fewer' : 'More'} scenarios</button>
             {more && <div className="stackv" style={{ gap: 8 }}>
               <button className="btn block sm" onClick={() => scen('expense', Math.round(state.monthly_needs * 0.5))}>Large expense</button>

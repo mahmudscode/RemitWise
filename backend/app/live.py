@@ -581,7 +581,7 @@ class Engine:
         who = self.sender_name(hid)
         title = f"Ask {who} to send by {pd.Timestamp(send_by).strftime('%-d %b')}" if send_by else f"Ask {who} for an earlier transfer"
         out.append(dict(id="ask_sender", title=title, detail=f"We will show {who} a gentle note. They decide.",
-                        amount=0, actionable=True, send_by=send_by))
+                        amount=0, actionable=True, send_by=send_by, asked=bool(st.get("sender_ask"))))
         return out
 
     def apply_option(self, hid: str, st: dict, option: str, thr: float) -> dict:
@@ -832,6 +832,56 @@ class Engine:
         else:
             raise ValueError("unknown scenario")
         return st
+
+    # ---------- guided demo (admin sandbox) ----------
+    def _accept_pending(self, hid: str, st: dict) -> dict:
+        if st["pending"]:
+            st = self.decide(hid, st, "accept", self.propose(hid, st)[1])
+        return st
+
+    def guided_step(self, hid: str, st: dict, step: int, thr: float) -> tuple[dict, dict]:
+        """One step of the judge path: remittance -> allocation -> unusual bill -> warning -> resolution.
+        Each step works from a freshly reset household and tells the UI which family screen to open."""
+        if step == 1:
+            if not st["pending"]:
+                st = self.advance(hid, st, 1, to_arrival=True)
+            if not st["pending"]:
+                raise ValueError("no remittance could be triggered")
+            return st, dict(open="home", message="Remittance arrived. Review the suggested split.")
+        if step == 2:
+            if not st["pending"]:
+                raise ValueError("Run step 1 first: no remittance is waiting for a decision.")
+            st = self._accept_pending(hid, st)
+            return st, dict(open="home", message="Allocation accepted: bills reserved, needs and goals funded.")
+        if step == 3:
+            st = self._accept_pending(hid, st)
+            st = self.scenario(hid, st, "high_bill", 0)
+            for _ in range(75):
+                if any(c["display_status"] == "needs_review" for c in self.bill_cards(hid, st, 10, 6)):
+                    return st, dict(open="payments", message="An unusually high bill is waiting for the family to review.")
+                st = self._accept_pending(hid, st)
+                st = self.advance(hid, st, 1)
+            raise ValueError("the unusual bill did not appear in time")
+        if step == 4:
+            st = self._accept_pending(hid, st)
+            st = self.scenario(hid, st, "delay", 14)
+            st = self.scenario(hid, st, "medical", 0)
+            for extra in ("eid_surge", "medical", "medical"):  # escalate until a warning shows
+                sf = self.shortfall(hid, st, thr)
+                if sf.get("available") and sf["severity"] != "green":
+                    break
+                st = self.scenario(hid, st, extra, 0)
+            sf = self.shortfall(hid, st, thr)
+            if not sf.get("available") or sf["severity"] == "green":
+                raise ValueError("no warning could be produced for this household")
+            return st, dict(open="home", message="Warning: the delayed transfer and a medical expense put the next days at risk.",
+                            severity=sf["severity"])
+        if step == 5:
+            if not any(o["id"] == "ask_sender" for o in self.options(hid, st, thr)):
+                raise ValueError("Run step 4 first: there is no warning to resolve.")
+            st = self.apply_option(hid, st, "ask_sender", thr)
+            return st, dict(open="plan", message="The family asked the sender to send earlier. It is the sender's decision.")
+        raise ValueError("unknown step")
 
     def sender_view(self, hid: str, st: dict) -> dict:
         """Coarse signals for the sender (no balances, no transactions)."""

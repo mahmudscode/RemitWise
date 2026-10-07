@@ -11,6 +11,7 @@ import Insights from './Insights.jsx'
 import Sender from './Sender.jsx'
 import Admin from './Admin.jsx'
 import RemittanceModal from './RemittanceModal.jsx'
+import { GuidedBar } from './Guided.jsx'
 
 const NAV = [['home', 'Home'], ['payments', 'Payments'], ['plan', 'Plan'], ['goals', 'Goals'], ['insights', 'Insights']]
 const PAGES = { home: Home, payments: Payments, plan: Plan, goals: Goals, insights: Insights }
@@ -19,11 +20,57 @@ const allowed = (role) => (role === 'sender' ? ['sender'] : role === 'admin' ? [
 const defaultPage = (role) => (role === 'sender' ? 'sender' : role === 'admin' ? 'admin' : 'home')
 const hashPage = () => location.hash.replace(/^#\/?/, '').split('/')[0]
 
+// Free hosts put the API to sleep when idle. Ping /api/health as soon as the app opens and show a friendly screen
+// (with a retry) until it answers, instead of a page full of errors.
+function useServerReady() {
+  const [ready, setReady] = useState(false)
+  const [slow, setSlow] = useState(false)
+  const [attempts, setAttempts] = useState(0)
+  const [round, setRound] = useState(0)
+  useEffect(() => {
+    let dead = false, timer
+    const showSlow = setTimeout(() => { if (!dead) setSlow(true) }, 1000)
+    const ping = async () => {
+      if (dead) return
+      setAttempts((n) => n + 1)
+      try {
+        const r = await fetch(`${BASE}/api/health`)
+        if (r.ok) { if (!dead) setReady(true); return }
+      } catch { /* server still starting */ }
+      if (!dead) timer = setTimeout(ping, 2500)
+    }
+    ping()
+    return () => { dead = true; clearTimeout(timer); clearTimeout(showSlow) }
+  }, [round])
+  return { ready, slow, attempts, retry: () => { setAttempts(0); setRound((x) => x + 1) } }
+}
+
+function Waking({ attempts, retry, lang, changeLang }) {
+  return (
+    <div className="waking" role="status">
+      <div className="inner">
+        <div className="spinner" />
+        <h1 style={{ fontSize: 26 }}>{t('Waking up the server…')}</h1>
+        <p style={{ opacity: .9 }}>{t('The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.')}</p>
+        {attempts > 2 && <p className="small" style={{ opacity: .8 }}>{t('Still trying… (attempt {n})', { n: attempts })}</p>}
+        <button className="btn" onClick={retry}>{t('Retry now')}</button>
+        <LangToggle lang={lang} onChange={changeLang} dark />
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
-  const [auth, setAuth] = useState({ status: getToken() ? 'loading' : 'out', user: null })
-  const [page, setPage] = useState('home')
+  const gate = useServerReady()
   const [lang, setLangState] = useState(getLang())
   const changeLang = (l) => { setLangModule(l); setLangState(l) }
+  if (!gate.ready) return gate.slow ? <Waking attempts={gate.attempts} retry={gate.retry} lang={lang} changeLang={changeLang} /> : null
+  return <AppInner lang={lang} changeLang={changeLang} />
+}
+
+function AppInner({ lang, changeLang }) {
+  const [auth, setAuth] = useState({ status: getToken() ? 'loading' : 'out', user: null })
+  const [page, setPage] = useState('home')
   const [hh, setHh] = useState([])
   const [hid, setHid] = useState('')
   const [state, setState] = useState(null)
@@ -80,8 +127,13 @@ export default function App() {
   }
   const advance = (days, to_arrival = false) => act(() => api(`/households/${hid}/advance`, { method: 'POST', body: { days, to_arrival } })).catch(() => {})
   const person = hh.find((h) => h.household_id === hid)
+  const [gLast, setGLast] = useState(0)
   const H = {}
-  const ctx = { hid, state, tick, lang, changeLang, H, act, person, go, hh, setHid, me, logout, role }
+  const guided = {
+    last: gLast, setLast: setGLast,
+    run: (n) => act(async () => { const r = await api(`/households/${hid}/demo/step`, { method: 'POST', body: { step: n } }); setGLast(n); go(r.open) }).catch(() => {}),
+  }
+  const ctx = { hid, state, tick, lang, changeLang, guided, H, act, person, go, hh, setHid, me, logout, role }
   const Page = PAGES[page]
   const showModal = state?.pending && dismissed !== state.pending.seq && page !== 'sender' && page !== 'admin'
 
@@ -133,12 +185,13 @@ export default function App() {
               <span><LangToggle lang={lang} onChange={changeLang} />{role === 'admin' && <button className="link" onClick={() => go('admin')}>{t('Admin console')}</button>}<button className="link gray" onClick={logout}>{t('Log out')}</button></span>
             </div>
             <div className="only-mobile" style={{ marginBottom: 12 }}>{clock}</div>
-            <Page {...ctx} openAdd={openAdd} clearAdd={() => setOpenAdd(false)} />
+            <Page key={hid} {...ctx} openAdd={openAdd} clearAdd={() => setOpenAdd(false)} />
             <p className="tiny muted" style={{ textAlign: 'center', marginTop: 24 }}>{t('Synthetic data only. No real money or customer data.')}</p>
           </main>
           <nav className="bottomnav">{NAV.map(([k, label]) => <button key={k} className={page === k ? 'on' : ''} onClick={() => go(k)}><Icon name={k} />{t(label)}</button>)}</nav>
         </div>
       )}
+      {state && role === 'admin' && page !== 'admin' && page !== 'sender' && <GuidedBar guided={guided} go={go} />}
       {showModal && <RemittanceModal {...ctx} onClose={() => setDismissed(state.pending.seq)} />}
     </>
   )

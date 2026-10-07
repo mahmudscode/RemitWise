@@ -58,7 +58,7 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
           const p = g.pace
           return (
             <section className="card" key={g.id}>
-              <div className="row between"><h2>{g.name}</h2><b className={p.on_track === false ? 'txt-amber' : g.pct >= 50 ? 'txt-green' : 'txt-blue'}>{Math.round(g.pct)}%</b></div>
+              <div className="row between"><h2>{tb(g.name)}</h2><b className={p.on_track === false ? 'txt-amber' : g.pct >= 50 ? 'txt-green' : 'txt-blue'}>{Math.round(g.pct)}%</b></div>
               <p className="muted small" style={{ margin: '4px 0' }}>{t('{a} of {b}', { a: taka(g.current), b: taka(g.target) })}</p>
               <Bar pct={g.pct} tone={tone(g)} />
               <div className="row only-desktop between small" style={{ marginTop: 6 }}><span className="muted">{t('Target')}</span><b>{fmtDate(p.target_date)}</b></div>
@@ -115,7 +115,7 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
           <button className="btn primary block">{t('Create goal')}</button>
         </form>
       </Modal>}
-      {addFor && <Modal title={t('Add money to {name}', { name: addFor.name })} onClose={() => setAddFor(null)}>
+      {addFor && <Modal title={t('Add money to {name}', { name: tb(addFor.name) })} onClose={() => setAddFor(null)}>
         <form className="form" onSubmit={(e) => { e.preventDefault(); act(() => api(`/households/${hid}/goals/${addFor.id}/add_money`, { ...H, method: 'POST', body: { amount: +amt } })).then(() => setAddFor(null)).catch(() => {}) }}>
           <p className="muted small">{t('Available to move: {amt}', { amt: taka(state.spendable) })}</p>
           <input type="number" min="1" max={state.spendable} placeholder={t('Amount ৳')} value={amt} onChange={(e) => setAmt(e.target.value)} required autoFocus />

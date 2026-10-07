@@ -21,6 +21,7 @@ export default function Plan({ hid, state, tick, H, act, person }) {
     // eslint-disable-next-line
   }, [hid, tick])
 
+  const asked = opts.find((o) => o.id === 'ask_sender')?.asked
   const total = (cats?.items || []).reduce((a, c) => a + c.amount, 0) || 1
   const f = fc?.forecast
   const coming = bills.filter((b) => ['scheduled', 'at_risk', 'needs_review'].includes(b.display_status) && f && b.due_day <= state.day + f.rem_p90)
@@ -45,7 +46,7 @@ export default function Plan({ hid, state, tick, H, act, person }) {
             <p className="small muted" style={{ margin: '4px 0 8px' }}>{t(opts.length > 1 ? 'The AI found {n} ways to stay above zero. You decide.' : 'The AI found {n} way to stay above zero. You decide.', { n: opts.length })}</p>
             {opts.map((o) => <button key={o.id} className={`opt ${pick === o.id ? 'on' : ''}`} onClick={() => setPick(o.id)}><span className="rad" />{tb(o.title)}</button>)}
             <button className="btn amber block" onClick={apply}>{t('Apply choice')}</button>
-            {note && <p className="small" style={{ marginTop: 8 }}>{note}</p>}
+            {(note || asked) && <p className="small" style={{ marginTop: 8 }}>{note || t('{who} has been asked. It is their decision.', { who: person?.sender_name })}</p>}
           </section>
         ) : (
           <section className="card green" style={{ alignSelf: 'start' }}><h2>{t('You are on track')}</h2><p className="small muted" style={{ marginTop: 4 }}>{t('No shortfall is expected if your next transfer arrives on time. We will tell you early if that changes.')}</p></section>

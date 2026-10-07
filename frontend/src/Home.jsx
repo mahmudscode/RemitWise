@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmtDate, longDate, taka } from './api'
-import { AI, Avatar, Bar, Chip, ft, Modal, Projection } from './ui'
+import { AI, Avatar, Bar, Chip, ft, Modal, Projection, Skel } from './ui'
 import { t, tb } from './i18n'
 
 export const subLine = (b) => {
@@ -12,10 +12,11 @@ export const subLine = (b) => {
 }
 
 export default function Home({ hid, state, tick, lang, H, go, person }) {
-  const [home, setHome] = useState(null)
-  const [fc, setFc] = useState(null)
-  const [pj, setPj] = useState(null)
-  const [sum, setSum] = useState(null)
+  // undefined = still loading (show a skeleton), null = loaded but not available
+  const [home, setHome] = useState(undefined)
+  const [fc, setFc] = useState(undefined)
+  const [pj, setPj] = useState(undefined)
+  const [sum, setSum] = useState(undefined)
   const [facts, setFacts] = useState(false)
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
 
         <section className="card">
           <div className="row between"><span className="muted">{t('Next remittance')}</span><AI why={<WhyForecast fc={fc} />} /></div>
-          {f ? (<>
+          {fc === undefined ? <Skel lines={3} /> : f ? (<>
             <p className="big">{t('Expected in {a}–{b} days', { a: Math.round(f.rem_p10), b: Math.round(f.rem_p90) })}</p>
             <p className="muted small">{t('About {a} – {b} from {who} ({city})', { a: taka(f.amt_p10), b: taka(f.amt_p90), who: person?.sender_name, city: person?.sender_city })}</p>
             <Bar pct={confPct} />
@@ -61,7 +62,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
 
         <section className="card">
           <div className="row between"><span className="muted">{t('Safe to spend')}</span><AI label="Estimate" title="How this is worked out" why={<WhySafe s={safe} />} /></div>
-          {safe ? (<>
+          {home === undefined ? <Skel lines={3} /> : safe ? (<>
             <p className="big txt-green" style={safe.status === 'amber' ? { color: 'var(--amber)' } : safe.status === 'red' ? { color: 'var(--red)' } : null}>{taka(safe.per_day)} <small>{t('/ day')}</small></p>
             <Bar tone={safe.status === 'green' ? 'green' : safe.status} pct={(safe.per_day / Math.max(safe.usual_per_day, 1)) * 100} />
             <p className="small muted">{t('Until your next expected transfer (about {n} days), without missing any bill. You usually spend about {amt} a day.', { n: safe.days, amt: taka(safe.usual_per_day) })}</p>
@@ -79,15 +80,16 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
       <div className="grid2">
         <section className="card only-desktop">
           <div className="row between"><h2>{t('Projected balance until next transfer')}</h2><AI label="AI forecast" /></div>
-          <Projection pj={pj} height={210} />
+          {pj === undefined ? <Skel block={210} /> : <Projection pj={pj} height={210} />}
         </section>
         <section className="card">
           <div className="row between" style={{ marginBottom: 10 }}><h2>{t('Upcoming payments')}</h2><button className="link" onClick={() => go('payments')}>{t('See all')}</button></div>
-          {(home?.upcoming || []).length === 0 && <p className="muted small">{t('Nothing due soon.')}</p>}
+          {home === undefined && <Skel lines={3} />}
+          {home !== undefined && (home?.upcoming || []).length === 0 && <p className="muted small">{t('Nothing due soon.')}</p>}
           {(home?.upcoming || []).map((b) => (
             <div className="item" key={b.key} style={{ cursor: 'default' }} onClick={() => go('payments')}>
               <Avatar text={b.name} />
-              <div className="grow"><b>{b.name}</b><small>{subLine(b)}</small></div>
+              <div className="grow"><b>{tb(b.name)}</b><small>{subLine(b)}</small></div>
               <div className="right"><b>{taka(b.amount ?? b.expected)}</b><Chip status={b.display_status} /></div>
             </div>
           ))}
@@ -97,7 +99,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
       <div className="grid2" style={{ gridTemplateColumns: '1.35fr 1fr' }}>
         <section className="card purple">
           <span className="ai" style={{ background: 'transparent', padding: 0 }}>{t('AI summary')}</span>
-          {sum ? (<>
+          {sum === undefined ? <Skel lines={3} /> : sum ? (<>
             <p style={{ margin: '8px 0', fontSize: 15 }}>{sum.text}</p>
             <span className="tag">{tb(sum.label)} · {sum.source}</span> <button className="link" onClick={() => setFacts(!facts)}>{facts ? t('Hide the facts used') : t('Show the facts used')}</button>
             {facts && <pre>{JSON.stringify(sum.source_facts, null, 1)}</pre>}
@@ -108,7 +110,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
           {state.goals.length === 0 && <p className="muted small">{t('No goals yet.')}</p>}
           {state.goals.slice(0, 3).map((g) => (
             <div key={g.id} style={{ margin: '10px 0' }}>
-              <div className="row between"><span>{g.name}</span><b className="txt-blue">{Math.round(g.pct)}%</b></div>
+              <div className="row between"><span>{tb(g.name)}</span><b className="txt-blue">{Math.round(g.pct)}%</b></div>
               <Bar pct={g.pct} />
             </div>
           ))}

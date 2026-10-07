@@ -75,7 +75,7 @@ export default function Sender({ hid, state, tick, H, act, person, go, me, logou
           {data.goals.length === 0 && <p className="muted small">{data.message ? tb(data.message) : t('No goals shared yet.')}{c.sender_accepted && c.scopes.goal_progress !== 'granted' && c.scopes.goal_progress !== 'requested' && <> <button className="link" onClick={() => ask('goal_progress')}>{t('Ask the family')}</button></>}</p>}
           <div className="grid2e">{data.goals.map((g) => (
             <div key={g.name} style={{ margin: '4px 0' }}>
-              <div className="row between"><b>{g.name}</b><b className={g.on_track ? 'txt-blue' : 'txt-amber'}>{g.pct}% · {g.on_track ? t('on track') : t('slightly behind')}</b></div>
+              <div className="row between"><b>{tb(g.name)}</b><b className={g.on_track ? 'txt-blue' : 'txt-amber'}>{g.pct}% · {g.on_track ? t('on track') : t('slightly behind')}</b></div>
               <Bar pct={g.pct} tone={g.on_track ? '' : 'amber'} />
             </div>))}
           </div>
