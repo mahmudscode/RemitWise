@@ -179,6 +179,8 @@ function Model({ ev, comp, per, person }) {
       </section>
       <WarningTuning w={w} />
       {ev.stress && <StressTest st={ev.stress} />}
+      {ev.sequence_experiment && <SequenceExperiment x={ev.sequence_experiment} />}
+      {ev.adaptive && <AdaptiveExperiment a={ev.adaptive} />}
       {ev.irregular_experiment && <IrregularExperiment x={ev.irregular_experiment} />}
       {ev.kpi_base && <Kpis ev={ev} />}
       <section className="card">
@@ -322,6 +324,34 @@ function Monitoring() {
       </div>
       <section className="card info small">{m.note} Irregular senders are the group to watch: the model is least certain about them, which is also why their ranges are wider.</section>
     </div>
+  )
+}
+
+function SequenceExperiment({ x }) {
+  const names = [['baseline', 'Current LightGBM (live)'], ['lightgbm_temporal', 'LightGBM + lag/rolling features'], ['mlp_sequence', 'Neural net over last 6 gaps and 3 amounts']]
+  return (
+    <section className="card" style={{ overflowX: 'auto' }}>
+      <div className="row between wrap"><h2>Experiment: temporal / sequence models</h2><span className={`chip ${x.adopted ? 'green' : 'amber'}`}>{x.adopted ? 'A variant replaced the model' : 'Baseline kept'}</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>{x.description} Measured on the held-out test households.</p>
+      <table><thead><tr><th>Model</th><th>Timing error</th><th>Timing coverage</th><th>Amount error</th><th>Amount coverage</th><th>Beats baseline?</th></tr></thead>
+        <tbody>{names.map(([k, label]) => { const o = x[k].overall; const v = x.verdicts?.[k]
+          return <tr key={k}><td>{label}</td><td><b>{f1(o.gap_mae_model)} d</b></td><td>{pct(o.gap_coverage)}</td><td>{pct(o.amt_mape_model)}</td><td>{pct(o.amt_coverage)}</td><td>{v ? (v.wins ? <span className="chip green">yes</span> : <span className="chip gray">no</span>) : '–'}</td></tr> })}</tbody></table>
+      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {x.reason} We tried; it did not beat the baseline. The neural net predicts amounts slightly better but times transfers worse and its ranges cover less than 80%.</p>
+    </section>
+  )
+}
+
+function AdaptiveExperiment({ a }) {
+  const rows = [['Overall', a.before.gap_mae, a.after.gap_mae, a.before.gap_coverage, a.after.gap_coverage],
+    ...Object.keys(a.before.by_regularity).map((g) => [`${g[0].toUpperCase()}${g.slice(1)} senders`, a.before.by_regularity[g].gap_mae, a.after.by_regularity[g].gap_mae, a.before.by_regularity[g].gap_coverage, a.after.by_regularity[g].gap_coverage])]
+  return (
+    <section className="card" style={{ overflowX: 'auto' }}>
+      <div className="row between wrap"><h2>Experiment: adaptive household correction</h2><span className={`chip ${a.adopted ? 'green' : 'amber'}`}>{a.adopted ? 'Live in the app' : 'Not adopted'}</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>{a.description}</p>
+      <table><thead><tr><th>Group</th><th>Timing error without</th><th>with correction</th><th>Coverage without</th><th>with correction</th></tr></thead>
+        <tbody>{rows.map(([k, b, x, cb, cx]) => <tr key={k}><td>{k}</td><td>{f1(b)} d</td><td><b>{f1(x)} d</b></td><td>{pct(cb)}</td><td>{pct(cx)}</td></tr>)}</tbody></table>
+      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {a.reason} In this synthetic data a household's gaps are independent draws, so earlier misses carry no signal and the correction only adds noise. With real remittance behaviour it may help, which a pilot would test. The spending baseline is already adaptive: daily needs are re-estimated from the last 60 days.</p>
+    </section>
   )
 }
 

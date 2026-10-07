@@ -114,6 +114,8 @@ const BN = {
   // data retention
   'Your data': 'আপনার তথ্য', 'You can delete your account and its data at any time. Sessions expire after 30 days and the audit log is kept for 12 months.': 'আপনি যেকোনো সময় অ্যাকাউন্ট ও তথ্য মুছে ফেলতে পারেন। সেশন ৩০ দিন পরে শেষ হয় এবং অডিট লগ ১২ মাস রাখা হয়।',
   'Read the data-retention policy': 'তথ্য সংরক্ষণ নীতি পড়ুন', 'Delete my account': 'আমার অ্যাকাউন্ট মুছুন', 'This permanently removes your account and data. Type DELETE to confirm.': 'এতে আপনার অ্যাকাউন্ট ও তথ্য স্থায়ীভাবে মুছে যাবে। নিশ্চিত করতে DELETE লিখুন।', 'Data-retention policy': 'তথ্য সংরক্ষণ নীতি',
+  // adaptive correction
+  'Adjusted for your household:': 'আপনার পরিবারের জন্য সমন্বয়:', days: 'দিন', 'your transfers have been later than predicted recently': 'সাম্প্রতিক ট্রান্সফার অনুমানের চেয়ে দেরিতে এসেছে', 'your transfers have been earlier than predicted recently': 'সাম্প্রতিক ট্রান্সফার অনুমানের চেয়ে আগে এসেছে',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

@@ -130,6 +130,7 @@ export const WhyForecast = ({ fc }) => (
   <div>
     <p>{t('This is a forecast made when your last transfer arrived. It looks at how often and how much your sender usually sends, the time of year, and recent delays.')}</p>
     {fc?.drivers?.length > 0 && <ul className="why">{fc.drivers.map((d, i) => <li key={i}>{ft(d.feature)}: {t(d.effect_days > 0 ? 'adds about {n} days' : 'saves about {n} days', { n: Math.abs(d.effect_days).toFixed(1) })}</li>)}</ul>}
+    {fc?.forecast?.adjust_days != null && Math.abs(fc.forecast.adjust_days) >= 1 && <p className="small"><b>{t('Adjusted for your household:')}</b> {fc.forecast.adjust_days > 0 ? '+' : ''}{fc.forecast.adjust_days} {t('days')} ({fc.forecast.adjust_days > 0 ? t('your transfers have been later than predicted recently') : t('your transfers have been earlier than predicted recently')}).</p>}
     {fc?.forecast?.naive && <p className="small muted">{t('A simple “same as last time” guess would say {n} days and {amt}.', { n: fc.forecast.naive.gap, amt: taka(fc.forecast.naive.amt) })}</p>}
     <p className="small muted">{t('If the transfer is late, the range is widened instead of pretending the forecast still holds.')}</p>
   </div>
