@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, fmtDate, pct, taka } from './api'
 
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1))
@@ -170,12 +170,35 @@ function Model({ ev, comp, setComp, per, person }) {
         <p className="small" style={{ marginTop: 8 }}><b>Honest reading:</b> {honest.join(' ')}</p>
         {mine('baseline') && mine('remitwise') && <p className="small" style={{ marginTop: 6 }}>For <b>{person?.name}</b> alone: {f1(mine('baseline').shortfall_days_per_year)} shortfall days a year without → <b>{f1(mine('remitwise').shortfall_days_per_year)}</b> with RemitWise; bills on time {pct(mine('baseline').on_time_rate)} → <b>{pct(mine('remitwise').on_time_rate)}</b>.</p>}
       </section>
+      <WarningTuning w={w} />
       <section className="card">
         <h2 style={{ marginBottom: 10 }}>Responsible AI checks</h2>
         <div className="chiprow">{CHECKS.map((c) => <span className="okchip" key={c}>✓ {c}</span>)}</div>
-        <p className="small muted" style={{ marginTop: 10 }}>Bill estimate error {pct(ev.bills.estimate_mape_model)} vs {pct(ev.bills.estimate_mape_naive)} for “same as last month”; unusual-bill flags precision {pct(ev.bills.anomaly_precision)}, recall {pct(ev.bills.anomaly_recall)}. The warning model catches more shortfalls but with more false alarms than a simple rule.</p>
+        <p className="small muted" style={{ marginTop: 10 }}>Bill estimate error {pct(ev.bills.estimate_mape_model)} vs {pct(ev.bills.estimate_mape_naive)} for “same as last month”; unusual-bill flags precision {pct(ev.bills.anomaly_precision)}, recall {pct(ev.bills.anomaly_recall)}. The tuned warning model trades some recall for far fewer false alarms; see the threshold table above.</p>
       </section>
     </div>
+  )
+}
+
+function WarningTuning({ w }) {
+  if (!w.before || !w.after) return null
+  const rule = w.threshold_only_rule
+  const rows = [['Before (best F1)', w.before, true], ['After (precision-tuned)', w.after, true], ['Simple rule (no model)', rule, false]]
+  const ld = (x) => (x == null ? '–' : `${x.toFixed(1)} days`)
+  return (
+    <section className="card">
+      <div className="row between wrap"><h2>Warning threshold: before vs after</h2><span className="ai">Test set</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>The threshold is chosen on calibration households only, then measured on {w.after.n.toLocaleString()} checkpoints from the held-out test households. {w.after.selection && <>After: {w.after.selection}.</>}</p>
+      <table><thead><tr><th>Setting</th><th>Threshold</th><th>Precision</th><th>Recall</th><th>F1</th><th>Avg. warning lead</th></tr></thead>
+        <tbody>{rows.map(([label, m, hasT]) => <tr key={label}><td>{label}</td><td>{hasT ? m.threshold.toFixed(2) : '–'}</td><td><b>{m.precision.toFixed(2)}</b></td><td>{m.recall.toFixed(2)}</td><td>{m.f1.toFixed(2)}</td><td>{ld(m.mean_lead_days)}</td></tr>)}</tbody></table>
+      <div style={{ height: 230, marginTop: 12 }}><ResponsiveContainer><ComposedChart data={w.sweep}>
+        <CartesianGrid vertical={false} stroke="#eef2f6" /><XAxis dataKey="threshold" fontSize={11} tickLine={false} /><YAxis domain={[0, 1]} fontSize={11} width={30} tickLine={false} axisLine={false} /><Tooltip /><Legend />
+        <Line isAnimationActive={false} dataKey="precision" name="Precision" stroke="#0e6e9c" strokeWidth={2.5} dot={false} />
+        <Line isAnimationActive={false} dataKey="recall" name="Recall" stroke="#c77d0a" strokeWidth={2.5} dot={false} />
+        <ReferenceLine x={w.after.threshold} stroke="#0f2a44" strokeDasharray="4 3" label={{ value: 'chosen', fontSize: 11, position: 'top' }} />
+      </ComposedChart></ResponsiveContainer></div>
+      <p className="small" style={{ marginTop: 6 }}><b>Honest reading:</b> Higher precision means fewer false alarms but some shortfalls are caught later or missed.</p>
+    </section>
   )
 }
 

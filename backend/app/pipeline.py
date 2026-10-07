@@ -52,6 +52,10 @@ def run():
 
     print("6/6 warning quality ...")
     wm = evaluation.warning_metrics(h, r, l, ds, P_all, bmaps)
+    b, a = wm["before"], wm["after"]
+    print(f"   warning threshold before {b['threshold']}: precision {b['precision']} recall {b['recall']} f1 {b['f1']} lead {b['mean_lead_days']}d")
+    print(f"   warning threshold after  {a['threshold']}: precision {a['precision']} recall {a['recall']} f1 {a['f1']} lead {a['mean_lead_days']}d")
+    print(f"   simple rule: precision {wm['threshold_only_rule']['precision']} recall {wm['threshold_only_rule']['recall']}")
     bm = evaluation.bill_metrics(h, bsched, bdefs)
     fs = evaluation.forecast_samples(te, P_te)
 

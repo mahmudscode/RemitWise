@@ -137,6 +137,14 @@ def _prf(df, warn):
                 n=int(len(df)), base_rate=round(float(df.truth.mean()), 4))
 
 
+PRECISION_TARGET = 0.85
+
+
+def _fbeta(m: dict, beta: float) -> float:
+    p, r = m["precision"], m["recall"]
+    return (1 + beta ** 2) * p * r / (beta ** 2 * p + r) if p + r else 0.0
+
+
 def warning_metrics(h, r, l, ds_all, P_all_df, bmaps) -> dict:
     P_all = {}
     for hid, g in P_all_df.groupby("household_id"):
@@ -144,13 +152,22 @@ def warning_metrics(h, r, l, ds_all, P_all_df, bmaps) -> dict:
     cal_ids = h[h.split == "cal"].household_id.tolist()[:60]
     test_ids = h[h.split == "test"].household_id.tolist()
     cal = _checkpoints(h, r, l, cal_ids, P_all, bmaps)
-    grid = np.arange(0.15, 0.85, 0.05)
-    best = max(grid, key=lambda t: _prf(cal, cal.prob >= t)["f1"])  # tuned on calibration households only
     test = _checkpoints(h, r, l, test_ids, P_all, bmaps)
-    return dict(threshold=round(float(best), 2),
-                model=_prf(test, test.prob >= best),
-                threshold_only_rule=_prf(test, test.naive_warn),
-                note="Tuned on calibration households; reported on clean test households.")
+    grid = [round(float(t), 2) for t in np.arange(0.15, 0.85, 0.05)]
+    cal_m = {t: _prf(cal, cal.prob >= t) for t in grid}  # selection uses calibration households only
+    # before: the F1-optimal threshold (Phase 1 behaviour)
+    t_before = max(grid, key=lambda t: cal_m[t]["f1"])
+    # after: lowest threshold reaching the precision target on calibration; fallback = best F0.5
+    ok = [t for t in grid if cal_m[t]["precision"] >= PRECISION_TARGET]
+    t_after = min(ok) if ok else max(grid, key=lambda t: _fbeta(cal_m[t], 0.5))
+    rule = "lowest threshold with precision >= %.2f on calibration" % PRECISION_TARGET if ok else "max F0.5 on calibration (target precision not reached)"
+    sweep = [dict(threshold=t, **{k: v for k, v in _prf(test, test.prob >= t).items()
+                                  if k in ("precision", "recall", "f1", "mean_lead_days")}) for t in grid]
+    before = dict(threshold=t_before, **_prf(test, test.prob >= t_before))
+    after = dict(threshold=t_after, selection=rule, **_prf(test, test.prob >= t_after))
+    return dict(threshold=t_after, before=before, after=after, sweep=sweep,
+                model=after, threshold_only_rule=_prf(test, test.naive_warn),
+                note="Thresholds chosen on calibration households; all numbers reported on clean test households.")
 
 
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:

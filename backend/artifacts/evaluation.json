@@ -768,12 +768,133 @@
     ]
   },
   "warning": {
-    "threshold": 0.45,
+    "threshold": 0.7,
+    "before": {
+      "threshold": 0.45,
+      "precision": 0.7141,
+      "recall": 0.731,
+      "f1": 0.7224,
+      "mean_lead_days": 6.79,
+      "n": 11521,
+      "base_rate": 0.3107
+    },
+    "after": {
+      "threshold": 0.7,
+      "selection": "lowest threshold with precision >= 0.85 on calibration",
+      "precision": 0.912,
+      "recall": 0.5268,
+      "f1": 0.6678,
+      "mean_lead_days": 3.49,
+      "n": 11521,
+      "base_rate": 0.3107
+    },
+    "sweep": [
+      {
+        "threshold": 0.15,
+        "precision": 0.502,
+        "recall": 0.9254,
+        "f1": 0.6509,
+        "mean_lead_days": 9.21
+      },
+      {
+        "threshold": 0.2,
+        "precision": 0.532,
+        "recall": 0.9075,
+        "f1": 0.6708,
+        "mean_lead_days": 8.94
+      },
+      {
+        "threshold": 0.25,
+        "precision": 0.5651,
+        "recall": 0.8874,
+        "f1": 0.6905,
+        "mean_lead_days": 8.67
+      },
+      {
+        "threshold": 0.3,
+        "precision": 0.6002,
+        "recall": 0.8578,
+        "f1": 0.7062,
+        "mean_lead_days": 8.31
+      },
+      {
+        "threshold": 0.35,
+        "precision": 0.633,
+        "recall": 0.8235,
+        "f1": 0.7158,
+        "mean_lead_days": 7.91
+      },
+      {
+        "threshold": 0.4,
+        "precision": 0.6731,
+        "recall": 0.7804,
+        "f1": 0.7228,
+        "mean_lead_days": 7.44
+      },
+      {
+        "threshold": 0.45,
+        "precision": 0.7141,
+        "recall": 0.731,
+        "f1": 0.7224,
+        "mean_lead_days": 6.79
+      },
+      {
+        "threshold": 0.5,
+        "precision": 0.7615,
+        "recall": 0.6841,
+        "f1": 0.7207,
+        "mean_lead_days": 6.18
+      },
+      {
+        "threshold": 0.55,
+        "precision": 0.8,
+        "recall": 0.6391,
+        "f1": 0.7106,
+        "mean_lead_days": 5.62
+      },
+      {
+        "threshold": 0.6,
+        "precision": 0.8441,
+        "recall": 0.5972,
+        "f1": 0.6995,
+        "mean_lead_days": 4.88
+      },
+      {
+        "threshold": 0.65,
+        "precision": 0.8854,
+        "recall": 0.5589,
+        "f1": 0.6853,
+        "mean_lead_days": 4.16
+      },
+      {
+        "threshold": 0.7,
+        "precision": 0.912,
+        "recall": 0.5268,
+        "f1": 0.6678,
+        "mean_lead_days": 3.49
+      },
+      {
+        "threshold": 0.75,
+        "precision": 0.9354,
+        "recall": 0.4972,
+        "f1": 0.6493,
+        "mean_lead_days": 2.98
+      },
+      {
+        "threshold": 0.8,
+        "precision": 0.9462,
+        "recall": 0.467,
+        "f1": 0.6254,
+        "mean_lead_days": 2.6
+      }
+    ],
     "model": {
-      "precision": 0.7176,
-      "recall": 0.7282,
-      "f1": 0.7229,
-      "mean_lead_days": 6.76,
+      "threshold": 0.7,
+      "selection": "lowest threshold with precision >= 0.85 on calibration",
+      "precision": 0.912,
+      "recall": 0.5268,
+      "f1": 0.6678,
+      "mean_lead_days": 3.49,
       "n": 11521,
       "base_rate": 0.3107
     },
@@ -785,7 +906,7 @@
       "n": 11521,
       "base_rate": 0.3107
     },
-    "note": "Tuned on calibration households; reported on clean test households."
+    "note": "Thresholds chosen on calibration households; all numbers reported on clean test households."
   },
   "bills": {
     "n_estimates": 1622,
@@ -1261,5 +1382,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-03T04:40:47"
+  "generated_at": "2026-10-07T09:12:44"
 }

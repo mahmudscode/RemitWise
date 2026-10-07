@@ -211,6 +211,15 @@ def test_forecaster_beats_naive_and_is_calibrated():
     assert abs(e["amt_coverage"] - config.INTERVAL_COVERAGE) < 0.08
 
 
+def test_warning_threshold_tuned_for_precision_with_before_after():
+    w = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["warning"]
+    assert w["after"]["precision"] >= w["before"]["precision"]
+    assert w["threshold"] == w["after"]["threshold"] and w["model"] == w["after"]
+    assert "threshold_only_rule" in w and len(w["sweep"]) >= 10
+    assert {"threshold", "precision", "recall", "f1", "mean_lead_days"} <= set(w["sweep"][0])
+    assert any(r["threshold"] == w["after"]["threshold"] for r in w["sweep"])
+
+
 # ---------- bills, vault, consent for the new screens ----------
 def _fresh_arrival(client, hid):
     client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
