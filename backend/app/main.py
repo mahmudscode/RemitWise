@@ -246,8 +246,8 @@ def advance(hid: str, body: Advance, w: Who = Depends(family_or_admin)):
 
 
 class Scenario(BaseModel):
-    kind: str
-    value: float = 0.0
+    kind: str = Field(max_length=30)
+    value: float = Field(0.0, ge=0, le=10_000_000)  # a negative expense would create money
 
 
 @app.post("/api/households/{hid}/scenario")
