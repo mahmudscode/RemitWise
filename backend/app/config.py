@@ -47,3 +47,10 @@ OTP_WINDOW_SECONDS = 600
 # Signed transaction webhooks (docs/09-api-contracts.md). The endpoint is disabled until a shared secret is set.
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 WEBHOOK_TOLERANCE_SECONDS = 300
+
+# Team decision: ship the Priority 3 experiments in the live model even where the offline rule ("adopt only if it wins")
+# says no. The measured effect is still reported honestly in Admin. Set any of these to false to fall back to the baseline.
+_flag = lambda name: os.getenv(name, "true").lower() in ("1", "true", "yes")
+FORCE_IRREGULAR_MODEL = _flag("FORCE_IRREGULAR_MODEL")   # regularity features + group-wise calibration
+FORCE_TEMPORAL_FEATURES = _flag("FORCE_TEMPORAL_FEATURES")  # lag / rolling features
+FORCE_ADAPTIVE = _flag("FORCE_ADAPTIVE")                 # per-household online correction in the live app

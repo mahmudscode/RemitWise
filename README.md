@@ -88,6 +88,10 @@ Copy `.env.example` to `backend/.env`. Placeholders only; never commit real secr
 | `DEMO_PASSWORD` | backend | Password for the demo accounts | `demo1234` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | backend | Provision your own admin (admins can never self-register). Leave empty to skip | empty |
 | `ALLOWED_ORIGINS` | backend | Comma-separated frontend URLs allowed by CORS in deployment, e.g. `https://your-app.vercel.app` | empty (local only) |
+| `OTP_DEMO_MODE` | backend | Simulated OTP: return the code in the response and show it on screen (no SMS is sent) | `true` |
+| `WEBHOOK_SECRET` | backend | Shared secret for the signed transaction webhook; empty keeps it disabled | empty |
+| `FORCE_IRREGULAR_MODEL`, `FORCE_TEMPORAL_FEATURES`, `FORCE_ADAPTIVE` | backend (build and run) | Switch the Priority 3 forecasting experiments on in the live model even though the offline rule did not require it | `true` |
+| `RW_ARTIFACTS_DIR` | backend | Where `python -m app.pipeline` writes artifacts (used by `./run.sh test-pg`) | `backend/artifacts` |
 | `VITE_API_URL` | frontend (`frontend/.env`) | Backend URL for deployed builds. Leave unset locally; the Vite dev server proxies `/api` | empty |
 
 ## 7. Run and build commands
@@ -114,7 +118,7 @@ Sign-in details for judges are in section 11.
 
 **Automated:**
 ```bash
-./run.sh test        # 119 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
+./run.sh test        # 122 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
 ```
 They cover allocator invariants (plans never overspend), summary safety (numbers validated, injection text sanitised), consent and household isolation, bills and the vault, sign-up, sign-in and persistence after a restart, admin endpoints, and a check that the forecaster beats a naive baseline. Tests use a temporary copy of the database, so demo data is untouched.
 
@@ -136,7 +140,7 @@ They cover allocator invariants (plans never overspend), summary safety (numbers
 | Late fees / year | ৳504 | ৳262 | ৳101 |
 | Kept in wallet after 24h | 13% | 27% | 76% |
 
-A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, fees and wallet retention. Forecast timing error is 8.0 days against 10.4 for a naive guess, amount error 58% against 80%, and range coverage 84% / 80% (target 80%). The shortfall warning was tuned for precision in the final-day update (before 0.71 / 0.73, now 0.91 / 0.53; a simple rule: 0.95 / 0.55; see the section below). These figures depend on the simulation's behaviour assumptions, so run `./run.sh build` to reproduce them.
+A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, fees and wallet retention. Forecast timing error is 8.0 days against 10.4 for a naive guess, amount error 58% against 80%, and range coverage 84% / 80% (target 80%). The shortfall warning was tuned for precision in the final-day update (before 0.72 / 0.73, now a hybrid of the model and the simple rule at 0.90 / 0.59; the simple rule alone: 0.95 / 0.55; see the section below). These figures depend on the simulation's behaviour assumptions, so run `./run.sh build` to reproduce them.
 
 ## 10. Other configuration and access
 
@@ -165,7 +169,7 @@ The admin opens the admin console automatically. The demo accounts exist only wh
 
 | Judge comment | What was built | Where to see it |
 |---|---|---|
-| Warning precision/recall 0.72/0.73 vs simple rule 0.95; show before/after | Threshold re-selected on calibration households only (lowest threshold with precision ≥ 0.85), full threshold sweep stored | Admin → Model performance → "Warning threshold: before vs after" table and chart |
+| Warning precision/recall 0.72/0.73 vs simple rule 0.95; show before/after | Threshold re-selected on calibration households only (lowest threshold with precision ≥ 0.85), a hybrid warning (model OR simple rule) that beats the rule on recall and notice time, full threshold sweep stored | Admin → Model performance → "Warning threshold: before vs after" table and chart |
 | Show 60/80/100% compliance; stress it is simulated | All three levels side by side next to "No plan" and "Fixed 50/30/20", with a "Simulated, not measured" banner; compact version for families | Admin → Model performance; family **Insights** |
 | Add delayed remittance, Eid surge, medical/electricity bill scenarios | `Eid expense surge` (+40% needs for 10 days) and `Medical emergency` (৳8,000), readable warning reasons | Admin → Simulation sandbox → "Real-life scenarios" |
 | Bangla UI | EN / বাংলা toggle (saved in the browser); Home, remittance pop-up, Payments, Plan, Goals, Insights, Sender, sign-in, AI summaries (Bangla template, or Groq when a key is set) | Toggle in the sidebar and sign-in page |
@@ -191,11 +195,12 @@ The admin opens the admin console automatically. The demo accounts exist only wh
 
 | | Threshold | Precision | Recall | F1 | Avg. lead |
 |---|---|---|---|---|---|
-| Before (best F1) | 0.45 | 0.71 | 0.73 | 0.72 | 6.8 days |
-| After (precision-tuned) | 0.70 | 0.91 | 0.53 | 0.67 | 3.5 days |
+| Before (model only, best F1) | 0.45 | 0.72 | 0.73 | 0.72 | 6.9 days |
+| Model only, precision-tuned | 0.70 | 0.91 | 0.52 | 0.66 | 3.5 days |
+| **After: hybrid (model OR simple rule)** | 0.70 | 0.90 | 0.59 | 0.71 | 3.9 days |
 | Simple rule | – | 0.95 | 0.55 | 0.69 | 2.8 days |
 
-Higher precision means fewer false alarms but some shortfalls are caught later or missed. At this threshold the simple rule is still slightly ahead on precision and recall; the model's edge is a longer warning lead and a tunable curve.
+Higher precision means fewer false alarms but some shortfalls are caught later or missed. The model alone, tuned for precision, loses to the simple rule on both precision and recall. The hybrid (warn when the model is confident or the rule fires, threshold chosen on calibration households) catches more shortfalls (recall 0.59 vs 0.55), gives more notice (3.9 vs 2.8 days) and has a better F1 than the rule, at about 5 points less precision. The rule is still the most precise single signal.
 
 **Simulated year at 60 / 80 / 100% compliance. Simulated, not measured:**
 
@@ -212,26 +217,27 @@ Compliance is an assumption; a real pilot would measure it.
 
 | | Normal | Under shock |
 |---|---|---|
-| Timing error (MAE) | 7.9 days | 20.9 days |
+| Timing error (MAE) | 8.0 days | 20.9 days |
 | Timing range coverage (target 80%) | 83% | 26% |
-| Warning precision / recall | 0.90 / 0.52 | 1.00 / 0.74 |
-| Average warning lead | 4.0 days | 1.9 days |
+| Warning precision / recall (hybrid) | 0.88 / 0.57 | 1.00 / 0.78 |
+| Average warning lead | 4.3 days | 2.2 days |
 
 The forecaster was never trained on shocks, so its ranges lose most of their coverage. Warnings still fire because they read the live balance, but give less notice. A real deployment would add a corridor-level alert and retrain on shock periods.
 
 **Load test** (laptop, one worker, SQLite, client and server on the same machine): 185 requests/s at 50 concurrent users, p50 257 ms, p95 372 ms, 0% errors; 198 requests/s at 10 users, p50 50 ms. This is a smoke test, not a production benchmark ([details](docs/load-test-results.md)).
 
-**Experiments that did not win, kept as evidence:** regularity features plus group calibration (irregular-sender timing error 13.73 to 13.72 days: noise), temporal LightGBM (+0.01 days), neural net over recent gaps (+0.24 days, worse coverage), per-household adaptive correction (8.03 to 8.39 days). The current LightGBM stays live in each case.
+**Experiments, reported honestly.** None improved accuracy on this synthetic data: regularity features plus group calibration (irregular-sender timing error 13.73 to 13.72 days: noise), temporal LightGBM (+0.01 days), neural net over recent gaps (+0.24 days, worse coverage), per-household adaptive correction (8.03 to 8.40 days, worse). By team decision the first two are switched on in the live model (measured effect: none, overall error 8.03 days either way) and so is the household correction (which does cost about 0.4 days; set `FORCE_ADAPTIVE=false` to turn it off). The neural net is not used. Admin → Model performance shows each result and "The model serving the app".
 
 **Guided demo.** Admin → Simulation sandbox → *Reset household*, then steps 1 to 5: remittance arrives, accept allocation, unusual bill, warning, resolution.
 
-**PostgreSQL.** Run `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data in it, runs the suite). It has **not been run here** because Docker is not installed on this machine.
+**PostgreSQL.** The whole pipeline and the full test suite were run against **PostgreSQL 18.6** (a user-space install, no Docker, on a fresh database): the pipeline produced identical numbers and **119 of 119 tests passed** at the time. That run found two tests that were SQLite-specific (raw `sqlite3` access) and one that assumed an empty database; they were fixed. Reproduce with `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data, runs the suite) or point `DATABASE_URL` at any empty PostgreSQL database and run `python -m app.pipeline` then `pytest`. The suite expects a fresh database each run. Not tested: PostgreSQL at production scale, other versions.
 
 **Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on real anonymised upay data, real upay payment and identity integration (the webhook adapter is the bridge), production PostgreSQL at scale and formal penetration testing, real investment products. These are our next phase, a controlled pilot with governed upay data.
 
 ## Honest status
 
-- The app and tests were verified against **SQLite**. PostgreSQL support exists (SQLAlchemy and `DATABASE_URL`, `./run.sh test-pg`) but has **not been run**.
+- The app and tests were verified against **SQLite** and, once, against **PostgreSQL 18.6** on a fresh database (see the PostgreSQL note above). Not run against a hosted or production-scale PostgreSQL.
+- Several Priority 3 experiments did not improve accuracy; they are on by team decision and their measured effect is shown in Admin, not hidden.
 - The Groq call is tested through a mocked HTTP layer; it has **not been called against the real service** (no API key was available).
 - Sign-in is real (salted hashes, hashed tokens, rate limiting, server-side roles) but it is a hackathon implementation: phone OTP and password reset are simulated (no SMS is sent), and tokens live in `localStorage`.
 - Behaviour change under RemitWise is a simulation **assumption** (the compliance level). Real remittance patterns may differ.

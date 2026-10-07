@@ -1297,7 +1297,7 @@ def test_irregular_experiment_is_recorded_and_the_decision_follows_the_rules():
     if x["adopted"]:  # the change may only be kept if it does not make overall error or coverage worse
         assert new["gap_mae_model"] <= base["gap_mae_model"] + 1e-9
     loaded = forecast.Forecaster.load()
-    assert (loaded.group_conformal if hasattr(loaded, "group_conformal") else False) == x["adopted"]
+    assert getattr(loaded, "group_conformal", False) == (x["adopted"] or x["forced"])  # forced = team decision, see config
 
 
 def test_regularity_features_and_group_calibration_work():
@@ -1337,7 +1337,8 @@ def test_adaptive_result_is_recorded_and_only_live_if_it_helped():
     from app import main
     a = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["adaptive"]
     assert a["adopted"] == (a["after"]["gap_mae"] <= a["before"]["gap_mae"] - 0.05)
-    assert (main.ENGINE.adapt is not None) == a["adopted"]
+    assert a["forced"] == (config.FORCE_ADAPTIVE and not a["adopted"])
+    assert (main.ENGINE.adapt is not None) == (a["adopted"] or a["forced"])  # on by team decision even when it did not help
 
 
 def test_adapted_forecast_shows_in_the_why_panel_when_switched_on(client, monkeypatch):
@@ -1367,7 +1368,7 @@ def test_sequence_experiment_recorded_and_baseline_kept_unless_it_wins():
     assert x["adopted"] == bool(x["winner"])
     live = forecast.Forecaster.load()
     uses_lags = any(f in forecast.LAG_FEATURES for f in getattr(live, "features", []))
-    assert uses_lags == x["adopted"]
+    assert uses_lags == (x["adopted"] or x["forced"])
 
 
 def test_lag_features_follow_the_history():
@@ -1407,3 +1408,12 @@ def test_live_warning_uses_the_rule_when_the_hybrid_is_on(client, monkeypatch):
     monkeypatch.setattr(e, "hybrid", False)
     only = e.shortfall(hid, st, 0.99)
     assert only["severity"] == risk.severity(only["prob"], 0.99)  # model-only behaviour is unchanged
+
+
+def test_live_model_summary_is_honest_about_the_forced_experiments():
+    lm = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["live_model"]
+    assert {"description", "baseline", "live", "group_calibration", "temporal_features", "n_features"} <= set(lm)
+    assert lm["group_calibration"] == (config.FORCE_IRREGULAR_MODEL or json.loads((config.ARTIFACTS / "evaluation.json").read_text())["irregular_experiment"]["adopted"])
+    # whatever is switched on, the cost or gain is measured and visible, and the live model must not be badly worse
+    assert lm["live"]["gap_mae"] <= lm["baseline"]["gap_mae"] + 0.3
+    assert abs(lm["live"]["gap_coverage"] - config.INTERVAL_COVERAGE) < 0.08

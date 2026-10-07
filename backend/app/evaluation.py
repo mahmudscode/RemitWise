@@ -339,6 +339,23 @@ def sequence_experiment(tr, ca, te, h_test, fc_base, fc_temporal) -> dict:
     return out
 
 
+def live_model_summary(te, h_test, fc_base, fc_live, feats, use_irregular, use_temporal, exp, seq_exp) -> dict:
+    """What the model that actually serves the app looks like, measured against the original baseline."""
+    def block(fc):
+        m = forecast_metrics(te, fc.predict(te), h_test)
+        o = m["overall"]
+        g = m["by_group"]["regularity"]
+        return dict(gap_mae=o["gap_mae_model"], gap_coverage=o["gap_coverage"], amt_mape=o["amt_mape_model"], amt_coverage=o["amt_coverage"],
+                    by_regularity={k: dict(gap_mae=v["gap_mae_model"], gap_coverage=v["gap_coverage"]) for k, v in g.items()})
+    parts = ["LightGBM quantile model with conformal calibration"]
+    if use_irregular:
+        parts.append("sender-regularity features and group-wise calibration" + ("" if exp["adopted"] else " (enabled by team decision; the offline rule did not require it)"))
+    if use_temporal:
+        parts.append("lag and rolling features" + ("" if seq_exp["adopted"] else " (enabled by team decision; the offline rule did not require it)"))
+    return dict(description="; ".join(parts), n_features=len(feats), group_calibration=bool(use_irregular), temporal_features=bool(use_temporal),
+                baseline=block(fc_base), live=block(fc_live))
+
+
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:
     """Forecast vs actual on the clean test set, model and naive side by side (for the judge chart)."""
     N = forecast.naive_forecast(te)

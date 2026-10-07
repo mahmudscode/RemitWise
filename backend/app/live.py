@@ -79,7 +79,7 @@ class Engine:
         try:
             import json
             a = json.loads((config.ARTIFACTS / "evaluation.json").read_text()).get("adaptive")
-            return dict(alpha=a["alpha"], shrink=a["shrink"], cap=a.get("cap", 10.0)) if a and a.get("adopted") else None
+            return dict(alpha=a["alpha"], shrink=a["shrink"], cap=a.get("cap", 10.0)) if a and (a.get("adopted") or a.get("forced")) else None
         except Exception:
             return None
 

@@ -30,15 +30,23 @@ def run():
     fc_new = forecast.Forecaster(forecast.ALL_FEATURES, group_conformal=True).fit(tr, ca)
     exp = evaluation.irregular_experiment(te, h[h.split == "test"].reset_index(drop=True),
                                           {"baseline": fc_base, "regularity_features": fc_feat, "regularity_features_group_calibration": fc_new})
-    fc = fc_new if exp["adopted"] else fc_base  # keep the change only if it does not hurt overall and helps irregular senders
     fc_temporal = forecast.Forecaster(forecast.FEATURES + forecast.LAG_FEATURES).fit(tr, ca)
-    seq_exp = evaluation.sequence_experiment(tr, ca, te, h[h.split == "test"].reset_index(drop=True), fc, fc_temporal)
+    h_test = h[h.split == "test"].reset_index(drop=True)
+    seq_exp = evaluation.sequence_experiment(tr, ca, te, h_test, fc_base, fc_temporal)
     for k in ("lightgbm_temporal", "mlp_sequence"):
         v = seq_exp["verdicts"][k]
         print(f"   sequence experiment {k}: gap MAE change {v['gap_mae_change']:+.2f} days, amount error change {v['amt_mape_change']:+.3f}, wins={v['wins']}")
-    if seq_exp["adopted"]:
-        fc = fc_temporal
-    print(f"   irregular-sender experiment: {exp['reason']}")
+    use_irregular = exp["adopted"] or config.FORCE_IRREGULAR_MODEL
+    use_temporal = seq_exp["adopted"] or config.FORCE_TEMPORAL_FEATURES
+    feats = forecast.FEATURES + (forecast.REGULARITY_FEATURES if use_irregular else []) + (forecast.LAG_FEATURES if use_temporal else [])
+    fc = forecast.Forecaster(feats, group_conformal=use_irregular).fit(tr, ca) if (use_irregular or use_temporal) else fc_base
+    live = evaluation.live_model_summary(te, h_test, fc_base, fc, feats, use_irregular, use_temporal, exp, seq_exp)
+    exp["forced"], seq_exp["forced"] = bool(use_irregular and not exp["adopted"]), bool(use_temporal and not seq_exp["adopted"])
+    if exp["forced"]:
+        exp["reason"] += " It is switched on anyway by team decision (FORCE_IRREGULAR_MODEL); the table shows what it changes."
+    if seq_exp["forced"]:
+        seq_exp["reason"] += " The temporal features are switched on anyway by team decision (FORCE_TEMPORAL_FEATURES)."
+    print(f"   live model: {live['description']} gap MAE {live['baseline']['gap_mae']:.2f} -> {live['live']['gap_mae']:.2f}, coverage {live['baseline']['gap_coverage']:.3f} -> {live['live']['gap_coverage']:.3f}")
     fc.save()
     P_ca = fc.predict(ca)
     P_all = fc.predict(ds)
@@ -62,6 +70,7 @@ def run():
     fm = evaluation.forecast_metrics(te, P_te, h[h.split == "test"].reset_index(drop=True))
 
     adaptive = evaluation.adaptive_experiment(ca, P_ca, te, P_te, h[h.split == "test"].reset_index(drop=True))
+    adaptive["forced"] = bool(config.FORCE_ADAPTIVE and not adaptive["adopted"])
     print(f"   adaptive household correction: before MAE {adaptive['before']['gap_mae']:.2f} -> after {adaptive['after']['gap_mae']:.2f} days; {adaptive['reason']}")
 
     print("5/6 policy comparison (simulated year, with vs without) ...")
@@ -84,7 +93,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, sequence_experiment=seq_exp, adaptive=adaptive, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, sequence_experiment=seq_exp, live_model=live, adaptive=adaptive, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,

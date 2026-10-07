@@ -179,6 +179,7 @@ function Model({ ev, comp, per, person }) {
       </section>
       <WarningTuning w={w} />
       {ev.stress && <StressTest st={ev.stress} />}
+      {ev.live_model && <LiveModel lm={ev.live_model} />}
       {ev.sequence_experiment && <SequenceExperiment x={ev.sequence_experiment} />}
       {ev.adaptive && <AdaptiveExperiment a={ev.adaptive} />}
       {ev.irregular_experiment && <IrregularExperiment x={ev.irregular_experiment} />}
@@ -327,16 +328,32 @@ function Monitoring() {
   )
 }
 
+const Status = ({ x, on = 'Adopted' }) => <span className={`chip ${x.adopted ? 'green' : x.forced ? 'blue' : 'amber'}`}>{x.adopted ? on : x.forced ? 'On by team decision' : 'Not adopted'}</span>
+
+function LiveModel({ lm }) {
+  const b = lm.baseline, l = lm.live
+  const rows = [['Timing error', `${f1(b.gap_mae)} d`, `${f1(l.gap_mae)} d`], ['Timing range coverage', pct(b.gap_coverage), pct(l.gap_coverage)], ['Amount error', pct(b.amt_mape), pct(l.amt_mape)], ['Amount range coverage', pct(b.amt_coverage), pct(l.amt_coverage)],
+    ...Object.keys(b.by_regularity).map((g) => [`${g[0].toUpperCase()}${g.slice(1)} senders: timing error`, `${f1(b.by_regularity[g].gap_mae)} d`, `${f1(l.by_regularity[g].gap_mae)} d`])]
+  return (
+    <section className="card">
+      <div className="row between wrap"><h2>The model serving the app</h2><span className="ai">Test set</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>{lm.description}. {lm.n_features} input features.</p>
+      <table><thead><tr><th>Measure</th><th>Original baseline</th><th>Live model</th></tr></thead><tbody>{rows.map(([k, x, y]) => <tr key={k}><td>{k}</td><td>{x}</td><td><b>{y}</b></td></tr>)}</tbody></table>
+      <p className="small" style={{ marginTop: 8 }}><b>Honest reading:</b> the experiments below did not improve accuracy on this synthetic data. They are switched on by team decision (<code>FORCE_*</code> settings) and cost nothing measurable here; the household correction does cost accuracy and is labelled as such.</p>
+    </section>
+  )
+}
+
 function SequenceExperiment({ x }) {
   const names = [['baseline', 'Current LightGBM (live)'], ['lightgbm_temporal', 'LightGBM + lag/rolling features'], ['mlp_sequence', 'Neural net over last 6 gaps and 3 amounts']]
   return (
     <section className="card" style={{ overflowX: 'auto' }}>
-      <div className="row between wrap"><h2>Experiment: temporal / sequence models</h2><span className={`chip ${x.adopted ? 'green' : 'amber'}`}>{x.adopted ? 'A variant replaced the model' : 'Baseline kept'}</span></div>
+      <div className="row between wrap"><h2>Experiment: temporal / sequence models</h2><Status x={x} on="A variant replaced the model" /></div>
       <p className="small muted" style={{ margin: '6px 0' }}>{x.description} Measured on the held-out test households.</p>
       <table><thead><tr><th>Model</th><th>Timing error</th><th>Timing coverage</th><th>Amount error</th><th>Amount coverage</th><th>Beats baseline?</th></tr></thead>
         <tbody>{names.map(([k, label]) => { const o = x[k].overall; const v = x.verdicts?.[k]
           return <tr key={k}><td>{label}</td><td><b>{f1(o.gap_mae_model)} d</b></td><td>{pct(o.gap_coverage)}</td><td>{pct(o.amt_mape_model)}</td><td>{pct(o.amt_coverage)}</td><td>{v ? (v.wins ? <span className="chip green">yes</span> : <span className="chip gray">no</span>) : '–'}</td></tr> })}</tbody></table>
-      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {x.reason} We tried; it did not beat the baseline. The neural net predicts amounts slightly better but times transfers worse and its ranges cover less than 80%.</p>
+      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {x.reason} The offline rule did not require a switch, and the temporal LightGBM features are on by team decision (no measurable change). The neural net predicts amounts slightly better but times transfers worse and its ranges cover less than 80%.</p>
     </section>
   )
 }
@@ -346,11 +363,11 @@ function AdaptiveExperiment({ a }) {
     ...Object.keys(a.before.by_regularity).map((g) => [`${g[0].toUpperCase()}${g.slice(1)} senders`, a.before.by_regularity[g].gap_mae, a.after.by_regularity[g].gap_mae, a.before.by_regularity[g].gap_coverage, a.after.by_regularity[g].gap_coverage])]
   return (
     <section className="card" style={{ overflowX: 'auto' }}>
-      <div className="row between wrap"><h2>Experiment: adaptive household correction</h2><span className={`chip ${a.adopted ? 'green' : 'amber'}`}>{a.adopted ? 'Live in the app' : 'Not adopted'}</span></div>
+      <div className="row between wrap"><h2>Experiment: adaptive household correction</h2><Status x={a} on="Live in the app" /></div>
       <p className="small muted" style={{ margin: '6px 0' }}>{a.description}</p>
       <table><thead><tr><th>Group</th><th>Timing error without</th><th>with correction</th><th>Coverage without</th><th>with correction</th></tr></thead>
         <tbody>{rows.map(([k, b, x, cb, cx]) => <tr key={k}><td>{k}</td><td>{f1(b)} d</td><td><b>{f1(x)} d</b></td><td>{pct(cb)}</td><td>{pct(cx)}</td></tr>)}</tbody></table>
-      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {a.reason} In this synthetic data a household's gaps are independent draws, so earlier misses carry no signal and the correction only adds noise. With real remittance behaviour it may help, which a pilot would test. The spending baseline is already adaptive: daily needs are re-estimated from the last 60 days.</p>
+      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {a.reason} In this synthetic data a household's gaps are independent draws, so earlier misses carry no signal and the correction only adds noise. It is on by team decision and makes timing error worse here (see the table); set <code>FORCE_ADAPTIVE=false</code> to turn it off. With real remittance behaviour it may help, which a pilot would test. The spending baseline is already adaptive: daily needs are re-estimated from the last 60 days.</p>
     </section>
   )
 }
@@ -359,7 +376,7 @@ function IrregularExperiment({ x }) {
   const names = [['baseline', 'Current model'], ['regularity_features', '+ regularity features'], ['regularity_features_group_calibration', '+ regularity features and group calibration']]
   return (
     <section className="card" style={{ overflowX: 'auto' }}>
-      <div className="row between wrap"><h2>Experiment: better forecasts for irregular senders</h2><span className={`chip ${x.adopted ? 'green' : 'amber'}`}>{x.adopted ? 'Adopted' : 'Not adopted'}</span></div>
+      <div className="row between wrap"><h2>Experiment: better forecasts for irregular senders</h2><Status x={x} /></div>
       <p className="small muted" style={{ margin: '6px 0' }}>{x.description} Measured on the held-out test households.</p>
       <table><thead><tr><th>Variant</th><th>Overall timing error</th><th>Overall coverage</th><th>Irregular timing error</th><th>Irregular coverage</th><th>Regular coverage</th></tr></thead>
         <tbody>{names.map(([k, label]) => { const o = x[k].overall, i = x[k].by_regularity.irregular, r = x[k].by_regularity.regular
