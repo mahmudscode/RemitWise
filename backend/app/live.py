@@ -17,6 +17,9 @@ from .db import DemoState, Goal as GoalRow, SessionLocal
 DEMO_START_SEQ = 3
 GRACE_DAYS = {"due": 2, "needs_review": 5}  # days after the due date before an unresolved bill becomes overdue
 BILLED_DAYS_BEFORE = 5  # a variable bill's real amount is known this many days before it is due
+EID_FACTOR = 1.4   # daily needs during the Eid surge scenario (assumption: about +40%)
+EID_DAYS = 10
+MEDICAL_DEFAULT = 8000.0
 CATS = ("food", "transport", "education", "health", "other")
 
 
@@ -134,7 +137,7 @@ class Engine:
         return dict(day=start_day - 1, spendable=float(ess[start_day:start_day + 10].sum()), buffer=0.0, vault=0.0,
                     goals={}, debt=0.0, shortfall_days=0, last_arrival_day=int(ev.loc[ev.seq == k - 1, "day"].iloc[0]),
                     last_seq=k - 1, pending=None, adherent=False, overrides={}, extra_income=0.0,
-                    need_mult=1.0, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
+                    need_mult=1.0, eid_until=-1, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
                     cycle_forecast=None, bill_cfg=cfg, mandates=[], bills={}, bill_override={}, paid_log=[],
                     bills_due=0, bills_on_time=0, late_fees=0.0, fees_avoided=0.0, overbilling_avoided=0.0,
                     anomalies_caught=0, contrib={}, sender_ask=False)
@@ -196,9 +199,14 @@ class Engine:
                                current=float(st["goals"].get(str(g.id), 0.0)),
                                days_left=max(g.deadline_day - st["day"], 14.0), priority=g.priority) for g in rows]
 
+    @staticmethod
+    def eid_factor(st: dict, day: int) -> float:
+        """Temporary Eid spending surge: applies to every day up to and including st['eid_until']."""
+        return EID_FACTOR if day <= st.get("eid_until", -1) else 1.0
+
     def usual_needs(self, hid: str, st: dict):
         ess = self.led[hid]["essential"].to_numpy()
-        mean_ess = float(ess[max(0, st["day"] - 60): st["day"] + 1].mean()) * st["need_mult"]
+        mean_ess = float(ess[max(0, st["day"] - 60): st["day"] + 1].mean()) * st["need_mult"] * self.eid_factor(st, st["day"] + 1)
         local_daily = (float(self.h.loc[hid, "local_income_monthly"]) + st["extra_income"]) / 30.0
         return mean_ess, max(mean_ess - local_daily, 0.0), local_daily
 
@@ -460,8 +468,24 @@ class Engine:
         recent_shock = float(led["shock"].to_numpy()[max(0, st["day"] - 7): st["day"] + 1].sum())
         drv = risk.drivers(recent, mean_ess, st["spendable"] + st["buffer"], f["rem_p50"],
                            f["days_since_arrival"], f["gap_p50"], recent_shock)
+        drv = self._scenario_drivers(st) + drv
+        drv = sorted(drv, key=lambda d: -d["magnitude"])[:3]
         sev = risk.severity(res["prob"], thr)
         return dict(available=True, **res, severity=sev, threshold=thr, drivers=drv, suggestions=_suggest(sev, drv))
+
+    @staticmethod
+    def _scenario_drivers(st: dict) -> list[dict]:
+        """Readable reasons for the real-life scenarios (Eid surge, medical expense)."""
+        out = []
+        if st["day"] < st.get("eid_until", -1):
+            out.append(dict(factor="eid_surge", magnitude=0.6, until=_d(st["eid_until"]),
+                            detail=f"Eid spending: daily needs are about {round((EID_FACTOR - 1) * 100)}% higher until {_d(st['eid_until'])}."))
+        for e in reversed(st["log"]):
+            if e["type"] == "medical_emergency" and st["day"] - e["day"] <= 14:
+                out.append(dict(factor="medical_emergency", magnitude=0.7, amount=e["amount"],
+                                detail=f"Unexpected medical expense of ৳{e['amount']:,} recently."))
+                break
+        return out
 
     def home(self, hid: str, st: dict, thr: float) -> dict:
         """Everything the Home screen needs, computed in code (no LLM)."""
@@ -743,7 +767,7 @@ class Engine:
                 events.append(dict(day=d, type="arrival", amount=amount))
                 break
             self._process_bills(hid, st, d, events)
-            base_need = ess[d] * st["need_mult"]
+            base_need = ess[d] * st["need_mult"] * self.eid_factor(st, d)
             if not st["adherent"]:
                 excess = max(st["spendable"] + inc[d] + st["extra_income"] / 30.0 - sim.CUSHION_DAYS * ess[d], 0.0)
                 base_need += leak * sim.CREEP_FACTOR * excess
@@ -778,11 +802,17 @@ class Engine:
             ev = self.ev[hid]
             cur = st["overrides"].get(str(seq), int(ev.loc[ev.seq == seq, "day"].iloc[0]))
             st["overrides"][str(seq)] = int(cur + value)
-        elif kind == "expense":
+        elif kind in ("expense", "medical"):
+            if kind == "medical" and value <= 0:
+                value = MEDICAL_DEFAULT
             a = sim.Account(spendable=st["spendable"], buffer=st["buffer"], debt=st["debt"])
             a.spend_day(value, 0.0)
             st["spendable"], st["buffer"], st["debt"] = a.spendable, a.buffer, a.debt
-            st["log"].append(dict(day=st["day"], type="large_expense", amount=value))
+            st["log"].append(dict(day=st["day"], type="medical_emergency" if kind == "medical" else "large_expense",
+                                  amount=round(value)))
+        elif kind == "eid_surge":
+            st["eid_until"] = int(st["day"] + EID_DAYS)
+            st["log"].append(dict(day=st["day"], type="eid_surge", until=_d(st["eid_until"])))
         elif kind == "second_income":
             st["extra_income"] += value
         elif kind == "family_member":

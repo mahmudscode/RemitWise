@@ -11,6 +11,7 @@ const EV = {
   bill_needs_review: (e) => [`${e.name} ${taka(e.amount)} flagged: held for review`, 'var(--red)'], bill_overdue: (e) => [`${e.name} overdue`, 'var(--red)'],
   bill_due_manual: (e) => [`${e.name} due (pay manually)`, 'var(--amber)'], shortfall: () => ['Shortfall day: essentials not fully covered', 'var(--amber)'],
   high_bill_injected: (e) => [`Scenario: unusually high ${e.name} bill injected`, 'var(--red)'], large_expense: (e) => [`Scenario: large expense ${taka(e.amount)}`, 'var(--amber)'],
+  eid_surge: (e) => [`Scenario: Eid expense surge until ${fmtDate(e.until)}`, 'var(--amber)'], medical_emergency: (e) => [`Scenario: medical emergency ${taka(e.amount)}`, 'var(--red)'],
   goal_used: (e) => [`Goal money used: ${taka(e.amount)}`, 'var(--amber)'],
 }
 const CHECKS = ['Synthetic data only', 'Feature explanations on every forecast', 'Auto-pay only under family mandates', 'Human confirmation above limits', 'LLM explains, never decides', 'Prompt-injection guard', 'Consent-based sharing with sender', 'Admins see aggregates, never a family\'s finances']
@@ -217,8 +218,12 @@ function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMor
           <div className="stackv" style={{ gap: 8 }}>
             <button className="btn primary block" onClick={() => adv(1, true)}>Trigger remittance</button>
             <button className="btn block" onClick={() => adv(7)}>Advance 7 days</button>
+            <p className="small" style={{ margin: '6px 0 0', fontWeight: 700 }}>Real-life scenarios</p>
             <button className="btn block" onClick={() => scen('delay', 14, 'Next transfer delayed by 14 days.')}>Delay next transfer</button>
-            <button className="btn block" onClick={() => scen('high_bill', 0, 'The next electricity bill will be unusually high.')}>Inject unusually high bill</button>
+            <button className="btn block" onClick={() => scen('eid_surge', 0, 'Eid expense surge: daily needs about 40% higher for 10 days.')}>Eid expense surge</button>
+            <button className="btn block" onClick={() => scen('medical', 8000, 'Medical emergency: ৳8,000 unexpected expense.')}>Medical emergency</button>
+            <button className="btn block" onClick={() => scen('high_bill', 0, 'The next electricity bill will be unusually high.')}>Inject unusually high bill (electricity)</button>
+            <p className="small" style={{ margin: '6px 0 0', fontWeight: 700 }}>Other</p>
             <button className="btn block" onClick={() => scen('new_emi', 0, 'A new phone EMI mandate was added.')}>Add new EMI</button>
             <button className="btn block ghost" onClick={() => run(() => api(`/households/${hid}/reset`, { method: 'POST' }), 'Household reset.')}>Reset household</button>
             <button className="link" onClick={() => setMore(!more)}>{more ? 'Fewer' : 'More'} scenarios</button>

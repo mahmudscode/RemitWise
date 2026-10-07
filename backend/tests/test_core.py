@@ -574,3 +574,46 @@ def test_new_family_sees_a_forecast_on_the_first_screen(client):
     home = client.get(f"/api/households/{hid}/home", headers=_bearer(tok)).json()
     assert home["safe"] is not None  # not "Available once a forecast exists"
     assert client.get(f"/api/households/{hid}/plan/projection", headers=_bearer(tok)).status_code == 200
+
+
+# ---------- real-life scenarios: Eid surge, medical emergency ----------
+def _scen(client, hid, kind, value=0):
+    r = client.post(f"/api/households/{hid}/scenario", json=dict(kind=kind, value=value), headers=H("admin", ""))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def _reset_and_arrive(client, hid):
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    client.post(f"/api/households/{hid}/advance", json=dict(days=1, to_arrival=True), headers=H("family", hid))
+    plan = client.get(f"/api/households/{hid}/plan", headers=H("family", hid)).json()
+    r = client.post(f"/api/households/{hid}/plan/decision", json=dict(decision="accept", plan=plan["options"][1]),
+                    headers=H("family", hid))
+    assert r.status_code == 200, r.text
+
+
+def test_eid_surge_raises_needs_then_expires(client):
+    hid = _hid(client)
+    _reset_and_arrive(client, hid)
+    before = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()["daily_needs"]
+    st = _scen(client, hid, "eid_surge")
+    assert any(e["type"] == "eid_surge" for e in st["log"])
+    after = st["daily_needs"]
+    assert 1.35 <= after / before <= 1.45
+    sf = client.get(f"/api/households/{hid}/shortfall", headers=H("family", hid)).json()
+    assert any(d["factor"] == "eid_surge" and "Eid" in d["detail"] for d in sf["drivers"])
+    for _ in range(11):
+        st = client.post(f"/api/households/{hid}/advance", json=dict(days=1), headers=H("family", hid)).json()
+    assert st["daily_needs"] / before < 1.2  # surge window is over
+
+
+def test_medical_emergency_logs_expense_and_explains_it(client):
+    hid = _hid(client)
+    _reset_and_arrive(client, hid)
+    s0 = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    st = _scen(client, hid, "medical")
+    ev = [e for e in st["log"] if e["type"] == "medical_emergency"]
+    assert ev and ev[-1]["amount"] == 8000
+    assert st["spendable"] + st["buffer"] < s0["spendable"] + s0["buffer"]
+    sf = client.get(f"/api/households/{hid}/shortfall", headers=H("family", hid)).json()
+    assert any(d["factor"] == "medical_emergency" and "medical" in d["detail"] for d in sf["drivers"])
