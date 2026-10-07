@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import OperationalError
 from pydantic import BaseModel, Field
 
 from . import allocator, auth, config, db, explain
@@ -40,6 +42,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="RemitWise API", version="1.0", lifespan=lifespan)
+
+
+@app.exception_handler(OperationalError)
+async def _db_unavailable(request: Request, exc: OperationalError):
+    """Database locked or unreachable: a clean, retryable error instead of a crash."""
+    return JSONResponse(status_code=503, content=dict(detail="The database is busy or unavailable. Please try again in a moment."), headers={"Retry-After": "2"})
+
+
+@app.exception_handler(Exception)
+async def _unexpected(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content=dict(detail="Something went wrong on our side. Please try again."))
 # Extra allowed origins (e.g. your Vercel URL) via ALLOWED_ORIGINS="https://a.vercel.app,https://b.com"
 _ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
     o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]

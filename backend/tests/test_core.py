@@ -984,3 +984,37 @@ def test_stress_results_are_saved_and_honest():
     assert s["forecast"]["shock"]["gap_mae"] > s["forecast"]["normal"]["gap_mae"]  # a shock really is harder
     assert s["forecast"]["shock"]["gap_coverage"] < s["forecast"]["normal"]["gap_coverage"]
     assert 0 <= s["warning"]["shock"]["recall"] <= 1
+
+
+# ---------- resilience: clean errors instead of crashes ----------
+def test_database_lock_returns_a_clean_503_not_a_crash(client, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+    from app import main
+    hid = _hid(client)
+
+    def locked(*a, **k):
+        raise OperationalError("select", {}, Exception("database is locked"))
+    monkeypatch.setattr(main.ENGINE, "get", locked)
+    r = client.get(f"/api/households/{hid}/state", headers=H("family", hid))
+    assert r.status_code == 503 and "try again" in r.json()["detail"] and r.headers["retry-after"]
+
+
+def test_unexpected_error_is_a_clean_500_without_internals(monkeypatch):
+    from app import main
+    with TestClient(main.app, raise_server_exceptions=False) as c:
+        hid = c.get("/api/households", headers=H("admin", "")).json()[0]["household_id"]
+        monkeypatch.setattr(main.ENGINE, "get", lambda *a, **k: 1 / 0)
+        r = c.get(f"/api/households/{hid}/state", headers=H("family", hid))
+    assert r.status_code == 500 and r.json() == dict(detail="Something went wrong on our side. Please try again.")
+
+
+def test_missing_model_file_does_not_break_the_app(client, monkeypatch):
+    from app import main
+    monkeypatch.setattr(main.ENGINE, "model", None)  # same state as a missing model file at start-up
+    hid = _hid(client)
+    r = client.get(f"/api/households/{hid}/forecast", headers=H("family", hid))
+    assert r.status_code == 200 and r.json()["drivers"] == []
+    assert client.get(f"/api/households/{hid}/home", headers=H("family", hid)).status_code == 200
+    from app import live, forecast
+    monkeypatch.setattr(forecast.Forecaster, "load", staticmethod(lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("model"))))
+    assert live.Engine().model is None

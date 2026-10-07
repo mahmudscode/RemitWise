@@ -41,7 +41,10 @@ class Engine:
         self.fc = {k: {int(r["seq"]): r for r in v.to_dict("records")} for k, v in fc.groupby("household_id")}
         ff = db.read_sql("SELECT * FROM forecast_features")
         self.ff = {k: {int(r["seq"]): r for r in v.to_dict("records")} for k, v in ff.groupby("household_id")}
-        self.model = forecast.Forecaster.load()
+        try:
+            self.model = forecast.Forecaster.load()
+        except Exception:  # a missing model file must not take the whole API down: only 'why' drivers go missing
+            self.model = None
         self._start = {}
         self._senders = ["Rahim", "Karim", "Jamal"]
         self.demo_ids = self._pick_demo()
