@@ -195,7 +195,7 @@ function Model({ ev, comp, per, person }) {
 function WarningTuning({ w }) {
   if (!w.before || !w.after) return null
   const rule = w.threshold_only_rule
-  const rows = [['Before (best F1)', w.before, true], ['After (precision-tuned)', w.after, true], ['Simple rule (no model)', rule, false]]
+  const rows = [['Before (model only, best F1)', w.before, true], ['Model only, precision-tuned', w.model_only, true], ['After: hybrid (model OR simple rule)', w.after, true], ['Simple rule (no model)', rule, false]].filter((r) => r[1])
   const ld = (x) => (x == null ? '–' : `${x.toFixed(1)} days`)
   return (
     <section className="card">
@@ -209,7 +209,7 @@ function WarningTuning({ w }) {
         <Line isAnimationActive={false} dataKey="recall" name="Recall" stroke="#c77d0a" strokeWidth={2.5} dot={false} />
         <ReferenceLine x={w.after.threshold} stroke="#0a3d7a" strokeDasharray="4 3" label={{ value: 'chosen', fontSize: 11, position: 'top' }} />
       </ComposedChart></ResponsiveContainer></div>
-      <p className="small" style={{ marginTop: 6 }}><b>Honest reading:</b> Higher precision means fewer false alarms but some shortfalls are caught later or missed.</p>
+      <p className="small" style={{ marginTop: 6 }}><b>Honest reading:</b> Higher precision means fewer false alarms but some shortfalls are caught later or missed. The hybrid warns when the model is confident or the simple rule fires: it catches more shortfalls and earlier than the rule alone, at a few points less precision than the rule. The chart shows the hybrid.</p>
     </section>
   )
 }

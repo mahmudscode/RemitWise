@@ -154,20 +154,28 @@ def warning_metrics(h, r, l, ds_all, P_all_df, bmaps) -> dict:
     cal = _checkpoints(h, r, l, cal_ids, P_all, bmaps)
     test = _checkpoints(h, r, l, test_ids, P_all, bmaps)
     grid = [round(float(t), 2) for t in np.arange(0.15, 0.85, 0.05)]
+    hyb = lambda df, t: (df.prob >= t) | df.naive_warn  # hybrid: warn when the model says so OR the simple rule fires
     cal_m = {t: _prf(cal, cal.prob >= t) for t in grid}  # selection uses calibration households only
+    cal_h = {t: _prf(cal, hyb(cal, t)) for t in grid}
     # before: the F1-optimal threshold (Phase 1 behaviour)
     t_before = max(grid, key=lambda t: cal_m[t]["f1"])
-    # after: lowest threshold reaching the precision target on calibration; fallback = best F0.5
-    ok = [t for t in grid if cal_m[t]["precision"] >= PRECISION_TARGET]
-    t_after = min(ok) if ok else max(grid, key=lambda t: _fbeta(cal_m[t], 0.5))
-    rule = "lowest threshold with precision >= %.2f on calibration" % PRECISION_TARGET if ok else "max F0.5 on calibration (target precision not reached)"
-    sweep = [dict(threshold=t, **{k: v for k, v in _prf(test, test.prob >= t).items()
-                                  if k in ("precision", "recall", "f1", "mean_lead_days")}) for t in grid]
+    def pick(table):  # lowest threshold reaching the precision target on calibration; fallback = best F0.5
+        ok = [t for t in grid if table[t]["precision"] >= PRECISION_TARGET]
+        return (min(ok), True) if ok else (max(grid, key=lambda t: _fbeta(table[t], 0.5)), False)
+    t_model, ok_m = pick(cal_m)
+    t_after, ok_h = pick(cal_h)
+    note_sel = lambda ok: "lowest threshold with precision >= %.2f on calibration" % PRECISION_TARGET if ok else "max F0.5 on calibration (target precision not reached)"
+    keep = ("precision", "recall", "f1", "mean_lead_days")
+    sweep = [dict(threshold=t, **{k: v for k, v in _prf(test, hyb(test, t)).items() if k in keep}) for t in grid]
+    sweep_model_only = [dict(threshold=t, **{k: v for k, v in _prf(test, test.prob >= t).items() if k in keep}) for t in grid]
     before = dict(threshold=t_before, **_prf(test, test.prob >= t_before))
-    after = dict(threshold=t_after, selection=rule, **_prf(test, test.prob >= t_after))
-    return dict(threshold=t_after, before=before, after=after, sweep=sweep,
+    model_only = dict(threshold=t_model, selection=note_sel(ok_m), **_prf(test, test.prob >= t_model))
+    after = dict(threshold=t_after, selection=note_sel(ok_h) + " (hybrid: model OR simple rule)", mode="hybrid_or", **_prf(test, hyb(test, t_after)))
+    return dict(threshold=t_after, mode="hybrid_or", before=before, after=after, model_only=model_only,
+                sweep=sweep, sweep_model_only=sweep_model_only,
                 model=after, threshold_only_rule=_prf(test, test.naive_warn),
-                note="Thresholds chosen on calibration households; all numbers reported on clean test households.")
+                note="Thresholds chosen on calibration households; all numbers reported on clean test households. "
+                     "The simple rule is 'current spendable money covers fewer days than the next transfer is expected to take'.")
 
 
 SHOCK_START_SEQ = 6      # the corridor disruption starts at this transfer
@@ -208,7 +216,7 @@ def stress_test(h, r, l, te, P_te, P_all_df, bmaps, threshold: float) -> dict:
     out = {}
     for name, ev in (("normal", r_test), ("shock", shocked_events(r_test))):
         ck = _checkpoints(h, ev, l, test_ids, P_all, bmaps, only_seqs=window)
-        out[name] = _prf(ck, ck.prob >= threshold)
+        out[name] = _prf(ck, (ck.prob >= threshold) | ck.naive_warn)  # same hybrid warning as the live app
     return dict(
         description=f"Three consecutive transfers (from transfer {SHOCK_START_SEQ}) arrive {SHOCK_DELAY_DAYS} days later each and {int(SHOCK_AMOUNT_CUT * 100)}% smaller.",
         threshold=threshold, forecast=dict(normal=cov(0, 1.0), shock=cov(SHOCK_DELAY_DAYS, 1 - SHOCK_AMOUNT_CUT)),

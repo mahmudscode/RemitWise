@@ -71,6 +71,8 @@ def run():
     wm = evaluation.warning_metrics(h, r, l, ds, P_all, bmaps)
     b, a = wm["before"], wm["after"]
     print(f"   warning threshold before {b['threshold']}: precision {b['precision']} recall {b['recall']} f1 {b['f1']} lead {b['mean_lead_days']}d")
+    mo = wm["model_only"]
+    print(f"   model only  {mo['threshold']}: precision {mo['precision']} recall {mo['recall']} f1 {mo['f1']} lead {mo['mean_lead_days']}d")
     print(f"   warning threshold after  {a['threshold']}: precision {a['precision']} recall {a['recall']} f1 {a['f1']} lead {a['mean_lead_days']}d")
     print(f"   simple rule: precision {wm['threshold_only_rule']['precision']} recall {wm['threshold_only_rule']['recall']}")
     st_ = evaluation.stress_test(h, r, l, te, P_te, P_all, bmaps, wm["threshold"])

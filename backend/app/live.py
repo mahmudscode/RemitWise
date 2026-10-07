@@ -46,6 +46,7 @@ class Engine:
         except Exception:  # a missing model file must not take the whole API down: only 'why' drivers go missing
             self.model = None
         self._start = {}
+        self.hybrid = self._load_hybrid()  # warning mode chosen by the offline evaluation
         self.adapt = self._load_adaptive()  # per-household correction: only switched on if the offline test showed it helps
         self._senders = ["Rahim", "Karim", "Jamal"]
         self.demo_ids = self._pick_demo()
@@ -64,6 +65,14 @@ class Engine:
             g = g.sort_values("due_day")
             self._bhist[bid] = (g.due_day.to_numpy(), g.amount.to_numpy(), g.anomaly.to_numpy().astype(bool))
         self._loaded.add(hid)
+
+    @staticmethod
+    def _load_hybrid() -> bool:
+        try:
+            import json
+            return json.loads((config.ARTIFACTS / "evaluation.json").read_text())["warning"].get("mode") == "hybrid_or"
+        except Exception:
+            return False
 
     @staticmethod
     def _load_adaptive() -> dict | None:
@@ -508,7 +517,12 @@ class Engine:
         drv = self._scenario_drivers(st) + drv
         drv = sorted(drv, key=lambda d: -d["magnitude"])[:3]
         sev = risk.severity(res["prob"], thr)
-        return dict(available=True, **res, severity=sev, threshold=thr, drivers=drv, suggestions=_suggest(sev, drv))
+        # hybrid warning (tuned offline): the simple rule "money covers fewer days than the next transfer needs" also raises an amber
+        cover_days = st["spendable"] / max(mean_ess - local_daily, 1.0)
+        rule = bool(cover_days < f["rem_p50"])
+        if self.hybrid and rule and sev == "green":
+            sev = "amber"
+        return dict(available=True, **res, severity=sev, threshold=thr, rule_fired=rule, drivers=drv, suggestions=_suggest(sev, drv))
 
     @staticmethod
     def _scenario_drivers(st: dict) -> list[dict]:

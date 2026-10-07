@@ -370,13 +370,14 @@ def test_bill_history_and_usual_range(client):
 
 # =================== accounts: register / login / roles / persistence ===================
 import itertools
-import sqlite3
+import uuid
 _n = itertools.count(1)
+_RUN = uuid.uuid4().hex[:6]  # a persistent database (PostgreSQL) keeps accounts from earlier runs
 
 
 def _register(client, role="family", **kw):
     i = next(_n)
-    body = dict(role=role, name=kw.pop("name", f"Test User {i}"), email=kw.pop("email", f"user{i}-{role}@example.com"),
+    body = dict(role=role, name=kw.pop("name", f"Test User {i}"), email=kw.pop("email", f"user{i}-{role}-{_RUN}@example.com"),
                 password=kw.pop("password", "a-good-password"))
     body.update(kw)
     return client.post("/api/auth/register", json=body), body
@@ -401,11 +402,11 @@ def test_register_family_gets_household_invite_code_and_session(client):
 def test_passwords_and_tokens_are_never_stored_in_plain_text(client):
     r, body = _register(client, "family", password="correct-horse-battery")
     token = r.json()["token"]
-    from app import config as cfg
-    path = cfg.DATABASE_URL.replace("sqlite:///", "")
-    con = sqlite3.connect(path)
-    dump = " ".join(str(v) for row in con.execute("select password_hash from users") for v in row)
-    sess = " ".join(str(v) for row in con.execute("select token_hash from auth_sessions") for v in row)
+    from sqlalchemy import text
+    from app import db as dbm
+    with dbm.engine.connect() as con:  # works on SQLite and PostgreSQL
+        dump = " ".join(str(v) for row in con.execute(text("select password_hash from users")) for v in row)
+        sess = " ".join(str(v) for row in con.execute(text("select token_hash from auth_sessions")) for v in row)
     assert "correct-horse-battery" not in dump and "scrypt$" in dump
     assert token not in sess  # only the hash of the token is kept
 
@@ -1378,3 +1379,31 @@ def test_lag_features_follow_the_history():
     assert f["lag_gap_1"] == 40 and f["lag_gap_2"] == 30 and f["lag_gap_6"] == 30
     assert abs(f["lag_logamt_1"] - np.log(20000)) < 1e-9 and abs(f["lag_logamt_3"] - np.log(14000)) < 1e-9
     assert f["ewm_gap_fast"] > f["ewm_gap_slow"]  # the latest long gap pulls the fast average up more
+
+
+# ---------- hybrid warning (model OR simple rule) ----------
+def test_hybrid_warning_beats_the_model_only_and_the_rule_where_it_claims_to():
+    w = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["warning"]
+    assert w["mode"] == "hybrid_or" and w["after"]["mode"] == "hybrid_or" and w["model"] == w["after"]
+    assert w["after"]["recall"] > w["model_only"]["recall"]  # the rule adds shortfalls the model alone misses
+    assert w["after"]["recall"] > w["threshold_only_rule"]["recall"]
+    assert w["after"]["mean_lead_days"] > w["threshold_only_rule"]["mean_lead_days"]  # earlier notice than the rule alone
+    assert w["after"]["precision"] >= 0.85 and w["after"]["precision"] >= w["before"]["precision"]
+    assert len(w["sweep_model_only"]) == len(w["sweep"])
+
+
+def test_live_warning_uses_the_rule_when_the_hybrid_is_on(client, monkeypatch):
+    from app import main
+    e = main.ENGINE
+    assert e.hybrid is True
+    hid = _micro_house(client)
+    st = e.get(hid)
+    base = e.shortfall(hid, st, 0.99)  # an unreachable model threshold: only the rule can raise a warning
+    assert base["rule_fired"] in (True, False)
+    st["spendable"] = 100.0
+    st["buffer"] = 0.0
+    low = e.shortfall(hid, st, 0.99)
+    assert low["rule_fired"] is True and low["severity"] == "amber"
+    monkeypatch.setattr(e, "hybrid", False)
+    only = e.shortfall(hid, st, 0.99)
+    assert only["severity"] == risk.severity(only["prob"], 0.99)  # model-only behaviour is unchanged
