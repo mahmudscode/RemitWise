@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, fmtDate, pct, taka } from './api'
 
+const COMPLIANCE = [0.6, 0.8, 1.0]
 const f1 = (x) => (x == null ? '–' : (Math.round(x * 10) / 10).toFixed(1))
 const TABS = [['overview', 'Overview'], ['users', 'Users'], ['model', 'Model performance'], ['sim', 'Simulation sandbox'], ['audit', 'Audit & data']]
 const EV = {
@@ -19,7 +20,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
   const [ov, setOv] = useState(null)
   const [users, setUsers] = useState([])
   const [ev, setEv] = useState(null)
-  const [comp, setComp] = useState(0.8)
+  const comp = 0.8 // compliance level used for the headline tiles and per-household line
   const [per, setPer] = useState([])
   const [audit, setAudit] = useState([])
   const [card, setCard] = useState('')
@@ -51,7 +52,7 @@ export default function Admin({ hid, state, act, tick, person, go, hh, setHid, l
         {err && <div className="error" onClick={() => setErr('')}>{err}</div>}
         {tab === 'overview' && <Overview ov={ov} ev={ev} />}
         {tab === 'users' && <Users users={users} me={me} setStatus={setStatus} delUser={delUser} />}
-        {tab === 'model' && ev && <Model ev={ev} comp={comp} setComp={setComp} per={per} person={person} />}
+        {tab === 'model' && ev && <Model ev={ev} comp={comp} per={per} person={person} />}
         {tab === 'sim' && <Sim {...{ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go }} />}
         {tab === 'audit' && <AuditTab audit={audit} card={card} />}
       </div>
@@ -117,7 +118,7 @@ function Users({ users, me, setStatus, delUser }) {
   )
 }
 
-function Model({ ev, comp, setComp, per, person }) {
+function Model({ ev, comp, per, person }) {
   const sum = ev.compare.summary
   const row = (policy, c) => sum.find((r) => r.policy === policy && (policy === 'baseline' || r.compliance === c))
   const base = row('baseline'), fx = row('fixed_rule', comp), rw = row('remitwise', comp)
@@ -138,8 +139,8 @@ function Model({ ev, comp, setComp, per, person }) {
       <div className="grid4 tiles">
         <Tile label="Remittance timing error (MAE)" value={`${f1(o.gap_mae_model)} days`} foot={`Baseline: ${f1(o.gap_mae_naive)} days`} tone="txt-blue" />
         <Tile label="Shortfall warning precision / recall" value={`${w.model.precision.toFixed(2)} / ${w.model.recall.toFixed(2)}`} foot={`Simple rule: ${w.threshold_only_rule.precision.toFixed(2)} / ${w.threshold_only_rule.recall.toFixed(2)}`} tone="txt-purple" />
-        <Tile label="On-time EMI & bill payments" value={pct(rw.on_time_rate)} foot={`Without plan: ${pct(base.on_time_rate)}`} tone="txt-green" />
-        <Tile label="Late fees avoided" value={taka(base.late_fees_per_year - rw.late_fees_per_year)} foot="per household / year" tone="txt-amber" />
+        <Tile label="On-time EMI & bill payments" value={pct(rw.on_time_rate)} foot={`Without plan: ${pct(base.on_time_rate)} · simulated`} tone="txt-green" />
+        <Tile label="Late fees avoided" value={taka(base.late_fees_per_year - rw.late_fees_per_year)} foot={`per household / year · simulated, ${pct(comp)} compliance`} tone="txt-amber" />
       </div>
       <div className="grid2e" style={{ gridTemplateColumns: '1.5fr 1fr' }}>
         <section className="card">
@@ -162,13 +163,13 @@ function Model({ ev, comp, setComp, per, person }) {
         </section>
       </div>
       <section className="card">
-        <div className="row between wrap"><h2>A simulated year, with vs without RemitWise</h2>
-          <label className="small row">Family follows the plan in <select value={comp} onChange={(e) => setComp(+e.target.value)} style={{ width: 'auto' }}>{[0.6, 0.8, 1.0].map((c) => <option key={c} value={c}>{pct(c)}</option>)}</select> of cycles</label></div>
-        <p className="small muted" style={{ margin: '6px 0' }}><b>Assumed, not measured:</b> how families behave with and without a plan. Shown across compliance levels so it cannot be cherry-picked.</p>
-        <table><thead><tr><th>Metric (average over test households)</th><th>Without</th><th>Fixed 50/30/20</th><th>RemitWise</th></tr></thead>
-          <tbody>{metrics.map(([label, k, fmt]) => <tr key={k}><td>{label}</td><td>{fmt(base[k])}</td><td>{fmt(fx[k])}</td><td><b>{fmt(rw[k])}</b></td></tr>)}</tbody></table>
-        <p className="small" style={{ marginTop: 8 }}><b>Honest reading:</b> {honest.join(' ')}</p>
-        {mine('baseline') && mine('remitwise') && <p className="small" style={{ marginTop: 6 }}>For <b>{person?.name}</b> alone: {f1(mine('baseline').shortfall_days_per_year)} shortfall days a year without → <b>{f1(mine('remitwise').shortfall_days_per_year)}</b> with RemitWise; bills on time {pct(mine('baseline').on_time_rate)} → <b>{pct(mine('remitwise').on_time_rate)}</b>.</p>}
+        <h2>A simulated year, with vs without RemitWise</h2>
+        <div className="simbanner"><b>Simulated, not measured.</b> Compliance is an assumption; a real pilot would measure it.</div>
+        <p className="small muted" style={{ margin: '6px 0' }}>Compliance = the share of transfer cycles in which the family follows the plan. All three levels are shown so the result cannot be cherry-picked.</p>
+        <div style={{ overflowX: 'auto' }}><table><thead><tr><th>Average over test households</th><th>No plan</th><th>Fixed 50/30/20 ({pct(comp)})</th>{COMPLIANCE.map((c) => <th key={c}>RemitWise {pct(c)}</th>)}</tr></thead>
+          <tbody>{metrics.map(([label, k, fmt]) => <tr key={k}><td>{label}</td><td>{fmt(base[k])}</td><td>{fmt(fx[k])}</td>{COMPLIANCE.map((c) => <td key={c}><b>{fmt(row('remitwise', c)[k])}</b></td>)}</tr>)}</tbody></table></div>
+        <p className="small" style={{ marginTop: 8 }}><b>Honest reading ({pct(comp)} compliance):</b> {honest.join(' ')}</p>
+        {mine('baseline') && mine('remitwise') && <p className="small" style={{ marginTop: 6 }}>For <b>{person?.name}</b> alone ({pct(comp)}): {f1(mine('baseline').shortfall_days_per_year)} shortfall days a year without → <b>{f1(mine('remitwise').shortfall_days_per_year)}</b> with RemitWise; bills on time {pct(mine('baseline').on_time_rate)} → <b>{pct(mine('remitwise').on_time_rate)}</b>.</p>}
       </section>
       <WarningTuning w={w} />
       <section className="card">

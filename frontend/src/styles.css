@@ -164,3 +164,5 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; } th, td { text
 /* tidy headers on small screens */
 .topbar { flex-wrap: wrap; row-gap: 8px; } .topbar .badge, .btn.sm { white-space: nowrap; }
 @media (max-width: 600px) { .topbar .badge { margin-left: 6px; font-size: 11px; padding: 3px 8px; } .topbar b { font-size: 17px !important; } .topbar .btn.sm { padding: 5px 10px; font-size: 12px; } }
+
+.simbanner{background:#fff6e0;border:1px solid #f1d58a;color:#7a4f00;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:14px}

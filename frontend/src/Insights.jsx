@@ -8,10 +8,12 @@ export default function Insights({ hid, state, tick, lang, H }) {
   const [sum, setSum] = useState(null)
   const [hist, setHist] = useState(null)
   const [facts, setFacts] = useState(false)
+  const [ev, setEv] = useState(null)
   useEffect(() => {
     api(`/households/${hid}/insights`, H).then(setD).catch(() => setD(null))
     api(`/households/${hid}/summary?type=monthly&lang=${lang}`, H).then(setSum).catch(() => setSum(null))
     api(`/households/${hid}/bills/history`, H).then(setHist).catch(() => setHist(null))
+    api('/evaluation').then(setEv).catch(() => setEv(null))
     // eslint-disable-next-line
   }, [hid, tick, lang])
   if (!d) return <p className="muted">Loading…</p>
@@ -66,6 +68,17 @@ export default function Insights({ hid, state, tick, lang, H }) {
           )}
         </div>
       </div>
+
+      {ev && (
+        <section className="card">
+          <h2>What following the plan could mean (simulated)</h2>
+          <div className="simbanner"><b>Simulated, not measured.</b> Compliance is an assumption; a real pilot would measure it.</div>
+          <table style={{ marginTop: 8 }}><thead><tr><th>If the family follows the plan in…</th>{[0.6, 0.8, 1.0].map((c) => <th key={c}>{pct(c)} of cycles</th>)}</tr></thead>
+            <tbody>{[['Bills on time', 'on_time_rate', pct], ['Late fees / year', 'late_fees_per_year', taka], ['Kept in wallet after 24h', 'retained_share', pct]].map(([label, k, fmt]) => (
+              <tr key={k}><td>{label}</td>{[0.6, 0.8, 1.0].map((c) => <td key={c}><b>{fmt(ev.compare.summary.find((r) => r.policy === 'remitwise' && r.compliance === c)[k])}</b></td>)}</tr>))}</tbody></table>
+          <p className="tiny muted" style={{ marginTop: 6 }}>Average of synthetic test households. Without a plan: {pct(ev.compare.summary.find((r) => r.policy === 'baseline').on_time_rate)} of bills on time.</p>
+        </section>
+      )}
 
       {hist && (
         <section className="card">
