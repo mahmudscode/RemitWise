@@ -23,7 +23,9 @@ export async function api(path, { method = 'GET', body, token: tokenOverride } =
     e.network = true
     throw e
   }
-  if ([502, 503, 504].includes(res.status)) {  // the proxy or host could not reach the backend
+  // 502/503/504 from OUR API carry a JSON message (email not set up, server busy ...): show it. Without one, the proxy or host is down.
+  const peek = [502, 503, 504].includes(res.status) ? await res.clone().json().catch(() => null) : null
+  if ([502, 503, 504].includes(res.status) && !(peek && typeof peek.detail === 'string')) {  // the proxy or host could not reach the backend
     const e = new Error(BASE
       ? 'The backend is not responding yet. If it is on a free host it may be waking up; wait a minute and try again.'
       : 'The backend is not running. In a terminal, run ./run.sh api (it listens on port 8000), then try again.')
