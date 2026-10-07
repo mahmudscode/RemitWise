@@ -31,6 +31,13 @@ def run():
     exp = evaluation.irregular_experiment(te, h[h.split == "test"].reset_index(drop=True),
                                           {"baseline": fc_base, "regularity_features": fc_feat, "regularity_features_group_calibration": fc_new})
     fc = fc_new if exp["adopted"] else fc_base  # keep the change only if it does not hurt overall and helps irregular senders
+    fc_temporal = forecast.Forecaster(forecast.FEATURES + forecast.LAG_FEATURES).fit(tr, ca)
+    seq_exp = evaluation.sequence_experiment(tr, ca, te, h[h.split == "test"].reset_index(drop=True), fc, fc_temporal)
+    for k in ("lightgbm_temporal", "mlp_sequence"):
+        v = seq_exp["verdicts"][k]
+        print(f"   sequence experiment {k}: gap MAE change {v['gap_mae_change']:+.2f} days, amount error change {v['amt_mape_change']:+.3f}, wins={v['wins']}")
+    if seq_exp["adopted"]:
+        fc = fc_temporal
     print(f"   irregular-sender experiment: {exp['reason']}")
     fc.save()
     P_ca = fc.predict(ca)
@@ -47,7 +54,7 @@ def run():
     db.write_frame(l, "ledger", index_cols=["household_id", "day"])
     db.write_frame(bdefs, "bill_defs", index_cols=["household_id"])
     db.write_frame(bsched, "bill_schedule", index_cols=["household_id", "due_day"])
-    feat = ds[["household_id", "seq"] + forecast.ALL_FEATURES]
+    feat = ds[["household_id", "seq"] + forecast.STORED_FEATURES]
     db.write_frame(feat, "forecast_features", index_cols=["household_id", "seq"])
     db.write_frame(P_all, "forecasts", index_cols=["household_id", "seq"])
 
@@ -75,7 +82,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, adaptive=adaptive, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, sequence_experiment=seq_exp, adaptive=adaptive, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,

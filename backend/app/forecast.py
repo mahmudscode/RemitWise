@@ -23,6 +23,10 @@ FEATURES = [
 # Sender-regularity features added by the irregular-sender experiment (Task 15)
 REGULARITY_FEATURES = ["gap_cv6", "max_gap6", "gap_trend6"]
 ALL_FEATURES = FEATURES + REGULARITY_FEATURES
+# Temporal (lag / rolling) features used by the sequence-model experiment (Task 16)
+N_LAGS = 6
+LAG_FEATURES = [f"lag_gap_{i}" for i in range(1, N_LAGS + 1)] + [f"lag_logamt_{i}" for i in range(1, 4)] + ["ewm_gap_fast", "ewm_gap_slow"]
+STORED_FEATURES = ALL_FEATURES + LAG_FEATURES
 MODEL_PATH = config.ARTIFACTS / "forecaster.joblib"
 
 
@@ -40,9 +44,18 @@ def row_features(hist: pd.DataFrame, hh: pd.Series) -> dict:
     # Treat tiny top-up transfers separately: gaps use all events (model learns this noise).
     cur = dates.iloc[-1]
     med = np.median(gaps)
+    lag = {f"lag_gap_{i}": float(gaps[-i]) if len(gaps) >= i else float(gaps.mean()) for i in range(1, N_LAGS + 1)}
+    la = np.log(amounts)
+    lag.update({f"lag_logamt_{i}": float(la[-i]) if len(la) >= i else float(la.mean()) for i in range(1, 4)})
+    for name, a in (("ewm_gap_fast", 0.6), ("ewm_gap_slow", 0.2)):
+        v = gaps[0]
+        for g in gaps[1:]:
+            v = a * g + (1 - a) * v
+        lag[name] = float(v)
     g6 = gaps[-6:]
     trend = float(np.polyfit(np.arange(len(g6)), g6, 1)[0]) if len(g6) >= 3 else 0.0
     return dict(
+        **lag,
         gap_cv6=float(g6.std() / g6.mean()) if len(g6) > 1 and g6.mean() > 0 else 0.0,
         max_gap6=float(g6.max()), gap_trend6=trend,
         last_gap=gaps[-1], gap_mean3=gaps[-3:].mean(), gap_mean_all=gaps.mean(),

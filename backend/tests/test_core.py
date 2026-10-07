@@ -1352,3 +1352,29 @@ def test_adapted_forecast_shows_in_the_why_panel_when_switched_on(client, monkey
     assert e.arrival_forecast(hid, 3).get("adjust_n") is None  # no history yet, nothing to learn from
     monkeypatch.setattr(e, "adapt", None)
     assert "adjust_days" not in e.arrival_forecast(hid, seq)
+
+
+# ---------- sequence-model experiment ----------
+def test_sequence_experiment_recorded_and_baseline_kept_unless_it_wins():
+    from app import forecast
+    x = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["sequence_experiment"]
+    assert {"baseline", "lightgbm_temporal", "mlp_sequence", "verdicts", "reason"} <= set(x)
+    b = x["baseline"]["overall"]["gap_mae_model"]
+    for k, v in x["verdicts"].items():
+        if v["wins"]:
+            assert x[k]["overall"]["gap_mae_model"] <= b - 0.15  # "wins" really means a clear improvement
+    assert x["adopted"] == bool(x["winner"])
+    live = forecast.Forecaster.load()
+    uses_lags = any(f in forecast.LAG_FEATURES for f in getattr(live, "features", []))
+    assert uses_lags == x["adopted"]
+
+
+def test_lag_features_follow_the_history():
+    import numpy as np, pandas as pd
+    from app import forecast
+    dates = pd.to_datetime(["2024-01-01", "2024-01-31", "2024-03-02", "2024-04-01", "2024-05-01", "2024-05-31", "2024-07-10"])
+    hist = pd.DataFrame(dict(date=dates, amount=[10000, 12000, 11000, 15000, 14000, 16000, 20000]))
+    f = forecast.row_features(hist, pd.Series(dict(local_income_monthly=5000, size=3, region="urban")))
+    assert f["lag_gap_1"] == 40 and f["lag_gap_2"] == 30 and f["lag_gap_6"] == 30
+    assert abs(f["lag_logamt_1"] - np.log(20000)) < 1e-9 and abs(f["lag_logamt_3"] - np.log(14000)) < 1e-9
+    assert f["ewm_gap_fast"] > f["ewm_gap_slow"]  # the latest long gap pulls the fast average up more

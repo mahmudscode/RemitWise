@@ -288,6 +288,49 @@ def adaptive_experiment(ca, P_ca, te, P_te, h_test) -> dict:
                 description="Each household's recent forecast errors (how much later or earlier its transfers came than predicted) nudge its next forecast: an exponentially weighted correction, shrunk while history is short, capped at 10 days. Parameters chosen on calibration households.")
 
 
+def sequence_experiment(tr, ca, te, h_test, fc_base, fc_temporal) -> dict:
+    """Does a temporal model beat the current LightGBM? Variants share the same households and metrics.
+    1) LightGBM + lag/rolling features (same quantile + conformal recipe)   2) small neural net over the last 6 gaps and 3 amounts."""
+    from sklearn.neural_network import MLPRegressor
+    from sklearn.preprocessing import StandardScaler
+    lag_cols = [f"lag_gap_{i}" for i in range(1, forecast.N_LAGS + 1)] + [f"lag_logamt_{i}" for i in range(1, 4)]
+    scaler = StandardScaler().fit(tr[lag_cols])
+    def fit(y):
+        m = MLPRegressor(hidden_layer_sizes=(32, 16), activation="relu", early_stopping=True, validation_fraction=0.15, n_iter_no_change=15,
+                         max_iter=400, alpha=1e-3, random_state=config.SEED)
+        return m.fit(scaler.transform(tr[lag_cols]), y)
+    m_gap, m_amt = fit(tr.target_gap.to_numpy()), fit(np.log(tr.target_amt.to_numpy()))
+    def predict(d):
+        X = scaler.transform(d[lag_cols])
+        return np.maximum(m_gap.predict(X), 1.0), np.exp(m_amt.predict(X))
+    gc, ac = predict(ca)
+    q = config.INTERVAL_COVERAGE  # split-conformal symmetric intervals from calibration residuals
+    qg = float(np.quantile(np.abs(ca.target_gap.to_numpy() - gc), q))
+    qa = float(np.quantile(np.abs(np.log(ca.target_amt.to_numpy()) - np.log(ac)), q))
+    gt, at = predict(te)
+    P_mlp = pd.DataFrame(dict(gap_p10=np.maximum(gt - qg, 1.0), gap_p50=gt, gap_p90=gt + qg,
+                              amt_p10=at * np.exp(-qa), amt_p50=at, amt_p90=at * np.exp(qa)), index=te.index)
+    out = {}
+    for name, P in (("baseline", fc_base.predict(te)), ("lightgbm_temporal", fc_temporal.predict(te)), ("mlp_sequence", P_mlp)):
+        m = forecast_metrics(te, P, h_test)
+        out[name] = dict(overall=m["overall"], by_regularity=m["by_group"]["regularity"])
+    off = lambda x: abs(x - config.INTERVAL_COVERAGE)
+    b = out["baseline"]["overall"]
+    verdicts = {}
+    for name in ("lightgbm_temporal", "mlp_sequence"):
+        o = out[name]["overall"]
+        wins = bool(o["gap_mae_model"] <= b["gap_mae_model"] - 0.15 and o["amt_mape_model"] <= b["amt_mape_model"] + 0.01
+                    and off(o["gap_coverage"]) <= off(b["gap_coverage"]) + 0.01 and off(o["amt_coverage"]) <= off(b["amt_coverage"]) + 0.01)
+        verdicts[name] = dict(wins=wins, gap_mae_change=round(o["gap_mae_model"] - b["gap_mae_model"], 3),
+                              amt_mape_change=round(o["amt_mape_model"] - b["amt_mape_model"], 4))
+    winner = "lightgbm_temporal" if verdicts["lightgbm_temporal"]["wins"] else None  # only this variant can replace the live model
+    out.update(verdicts=verdicts, winner=winner, adopted=winner is not None,
+               description="Tried a temporal variant of LightGBM (last 6 gaps, last 3 amounts, fast and slow moving averages) and a small neural network over the last 6 gaps and 3 amounts. Same test households, same metrics. A variant replaces the current model only if timing error is at least 0.15 days lower with amount error and coverage no worse.",
+               reason=("The temporal LightGBM won and is now the live model." if winner else
+                       "Neither temporal variant beat the current model, so LightGBM with the original features stays. Short, noisy transfer histories give sequence models little extra signal."))
+    return out
+
+
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:
     """Forecast vs actual on the clean test set, model and naive side by side (for the judge chart)."""
     N = forecast.naive_forecast(te)

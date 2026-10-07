@@ -1077,6 +1077,144 @@
     "description": "Adds sender-regularity features (gap variation over the last 6 transfers, longest recent gap, gap trend) and calibrates the range separately for senders who look regular / semi-regular / irregular in their own history.",
     "reason": "Not adopted: irregular improves materially failed. The original forecaster is kept."
   },
+  "sequence_experiment": {
+    "baseline": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.029848375241116,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5802811682518364,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.8353502016868354,
+        "amt_coverage": 0.7979464613127979
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 13.727230796443445,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7554852549999646,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.7722342733188721,
+          "amt_coverage": 0.735357917570499
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.7502111839549848,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.08186281261082078,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.8933002481389578,
+          "amt_coverage": 0.8660049627791563
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.145529388941354,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.8001141207557894,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.8232876712328767,
+          "amt_coverage": 0.7801369863013699
+        }
+      }
+    },
+    "lightgbm_temporal": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.042845067846157,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5802103932465084,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.8283828382838284,
+        "amt_coverage": 0.7950128346167951
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 13.724535555925584,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7435432657761448,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.7483731019522777,
+          "amt_coverage": 0.7310195227765727
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.766003735855195,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.08296859796572396,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.8895781637717122,
+          "amt_coverage": 0.8722084367245657
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.161937395640747,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.8031421965068849,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.8198630136986301,
+          "amt_coverage": 0.7726027397260274
+        }
+      }
+    },
+    "mlp_sequence": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.275027864574263,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5589031936391973,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.7887788778877888,
+        "amt_coverage": 0.7466079941327466
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 14.134690853409195,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7444384631279267,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.5553145336225597,
+          "amt_coverage": 0.5856832971800434
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.8672816203951537,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.12705169634995878,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.9751861042183623,
+          "amt_coverage": 0.9925558312655087
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.410191450160193,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.738725486502774,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.7595890410958904,
+          "amt_coverage": 0.6616438356164384
+        }
+      }
+    },
+    "verdicts": {
+      "lightgbm_temporal": {
+        "wins": false,
+        "gap_mae_change": 0.013,
+        "amt_mape_change": -0.0001
+      },
+      "mlp_sequence": {
+        "wins": false,
+        "gap_mae_change": 0.245,
+        "amt_mape_change": -0.0214
+      }
+    },
+    "winner": null,
+    "adopted": false,
+    "description": "Tried a temporal variant of LightGBM (last 6 gaps, last 3 amounts, fast and slow moving averages) and a small neural network over the last 6 gaps and 3 amounts. Same test households, same metrics. A variant replaces the current model only if timing error is at least 0.15 days lower with amount error and coverage no worse.",
+    "reason": "Neither temporal variant beat the current model, so LightGBM with the original features stays. Short, noisy transfer histories give sequence models little extra signal."
+  },
   "adaptive": {
     "adopted": false,
     "alpha": 0.3,
@@ -1601,5 +1739,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-07T10:12:55"
+  "generated_at": "2026-10-07T10:19:25"
 }
