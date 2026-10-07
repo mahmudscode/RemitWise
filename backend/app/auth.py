@@ -282,3 +282,18 @@ def set_password(user_id: int, new_password: str) -> None:
         u.password_hash = hash_password(new_password)
         s.query(AuthSession).filter(AuthSession.user_id == user_id).delete()
         s.commit()
+
+
+AUDIT_RETENTION_DAYS = 365
+
+
+def purge_expired() -> dict:
+    """Retention (docs/data-retention.md): drop expired sessions, used/expired one-time codes, audit rows older than 12 months."""
+    from .db import Audit
+    cutoff = db.now() - dt.timedelta(days=AUDIT_RETENTION_DAYS)
+    with SessionLocal() as s:
+        n_sess = s.query(AuthSession).filter(AuthSession.expires_at < db.now()).delete()
+        n_otp = s.query(OtpCode).filter((OtpCode.expires_at < db.now()) | (OtpCode.used.is_(True))).delete()
+        n_aud = s.query(Audit).filter(Audit.ts < cutoff).delete()
+        s.commit()
+    return dict(sessions=n_sess, codes=n_otp, audit=n_aud)

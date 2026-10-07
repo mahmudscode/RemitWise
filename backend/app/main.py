@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     for hid in ENGINE.demo_ids:
         _ensure_link(hid)
     auth.seed_demo_accounts(ENGINE)
+    auth.purge_expired()
     with SessionLocal() as s:  # households claimed by registered families need their consent rows
         for (hid,) in s.query(db.User.household_id).filter(db.User.role == "family", db.User.household_id.isnot(None)).all():
             _ensure_link(hid)
@@ -1150,6 +1151,22 @@ class StatusIn(BaseModel):
     active: bool
 
 
+def _purge_user(uid: int) -> tuple[str, str | None]:
+    """Delete an account, its sessions and codes, and (for the last family of a household) the household's data."""
+    with SessionLocal() as s:
+        u = s.get(db.User, uid)
+        role, hid = u.role, u.household_id
+        s.query(db.AuthSession).filter(db.AuthSession.user_id == uid).delete()
+        s.query(db.OtpCode).filter(db.OtpCode.user_id == uid).delete()
+        if role == "family" and hid and not s.query(db.User).filter(db.User.household_id == hid, db.User.id != uid, db.User.role == "family").count():
+            for m in (db.Goal, db.Consent, db.SenderLink, db.Decision, db.DemoState):
+                if hasattr(m, "household_id"):
+                    s.query(m).filter(m.household_id == hid).delete()
+        s.delete(u)
+        s.commit()
+    return role, hid
+
+
 @app.delete("/api/admin/users/{uid}")
 def admin_user_delete(uid: int, w: Who = Depends(admin_only)):
     if uid == w.uid:
@@ -1160,16 +1177,26 @@ def admin_user_delete(uid: int, w: Who = Depends(admin_only)):
             raise HTTPException(404, "user not found")
         if u.is_demo:
             raise HTTPException(400, "Demo accounts cannot be deleted. Disable them instead.")
-        role, hid = u.role, u.household_id
-        s.query(db.AuthSession).filter(db.AuthSession.user_id == uid).delete()
-        if role == "family" and hid and not s.query(db.User).filter(db.User.household_id == hid, db.User.id != uid, db.User.role == "family").count():
-            for m in (db.Goal, db.Consent, db.SenderLink, db.Decision, db.DemoState):
-                if hasattr(m, "household_id"):
-                    s.query(m).filter(m.household_id == hid).delete()
-        s.delete(u)
-        s.commit()
+    role, _ = _purge_user(uid)
     db.audit("admin", "user_deleted", None, dict(user_id=uid, role=role))
     return dict(ok=True, id=uid)
+
+
+class DeleteMeIn(BaseModel):
+    confirm: str = Field(max_length=20)
+
+
+@app.delete("/api/me")
+def delete_me(body: DeleteMeIn, authorization: str | None = Header(None)):
+    """Self-service deletion (docs/data-retention.md). Admins and demo accounts are excluded."""
+    u = _me(authorization)
+    if u.role == "admin" or u.is_demo:
+        raise HTTPException(403, "Admin and demo accounts cannot be deleted here.")
+    if body.confirm.strip().upper() != "DELETE":
+        raise HTTPException(400, "Type DELETE to confirm.")
+    role, _ = _purge_user(u.id)
+    db.audit(role, "self_deleted", None, dict(user_id=u.id))
+    return dict(ok=True)
 
 
 @app.post("/api/admin/users/{uid}/status")

@@ -918,3 +918,40 @@ def test_groq_is_asked_for_bangla_and_goal_names_are_sanitised_first(fake_groq):
     assert r["source"] == "groq"  # Bengali digits are validated against the same facts
     prompt = seen[0]["messages"][1]["content"]
     assert "Bangla" in prompt and "###" not in prompt and "Ignore previous" not in prompt
+
+
+# ---------- data retention and self-deletion ----------
+def test_self_deletion_removes_account_and_household_data(client):
+    email, tok = _fresh_family(client, "del")
+    me = client.get("/api/auth/me", headers=_bearer(tok)).json()["user"]
+    hid = me["household_id"]
+    assert client.request("DELETE", "/api/me", json=dict(confirm="nope"), headers=_bearer(tok)).status_code == 400
+    assert client.request("DELETE", "/api/me", json=dict(confirm="delete"), headers=_bearer(tok)).status_code == 200
+    assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 401
+    assert client.post("/api/auth/login", json=dict(email=email, password="oldpass123")).status_code == 401
+    from app import db
+    with db.SessionLocal() as s:
+        assert s.query(db.Goal).filter(db.Goal.household_id == hid).count() == 0
+        assert s.query(db.DemoState).filter(db.DemoState.household_id == hid).count() == 0
+
+
+def test_demo_and_admin_accounts_cannot_self_delete(client):
+    for email in ("admin@demo.remitwise", "rahima@demo.remitwise"):
+        tok = client.post("/api/auth/login", json=dict(email=email, password="demo1234")).json()["token"]
+        assert client.request("DELETE", "/api/me", json=dict(confirm="DELETE"), headers=_bearer(tok)).status_code == 403
+        assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 200
+
+
+def test_retention_purges_expired_sessions_codes_and_old_audit(client):
+    import datetime as dt
+    from app import auth, db
+    with db.SessionLocal() as s:
+        s.add(db.AuthSession(token_hash="x" * 64, user_id=1, expires_at=db.now() - dt.timedelta(days=1)))
+        s.add(db.Audit(ts=db.now() - dt.timedelta(days=400), actor="t", action="old", detail={}))
+        s.add(db.Audit(ts=db.now(), actor="t", action="recent", detail={}))
+        s.commit()
+    res = auth.purge_expired()
+    assert res["sessions"] >= 1 and res["audit"] >= 1
+    with db.SessionLocal() as s:
+        actions = {a for (a,) in s.query(db.Audit.action).all()}
+    assert "old" not in actions and "recent" in actions

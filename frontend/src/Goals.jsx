@@ -14,6 +14,8 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const [hint, setHint] = useState(null)
   const [msg, setMsg] = useState('')
   const [micro, setMicro] = useState(null)
+  const [delText, setDelText] = useState('')
+  const [delOpen, setDelOpen] = useState(false)
   const [agree, setAgree] = useState(false)
   const timer = useRef(null)
 
@@ -129,6 +131,21 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
           <p className="tiny muted" style={{ marginTop: 8 }}>{t('Spending details are not shared in this demo.')}</p>
         </>)}
       </section>
+
+      {me && me.role !== 'admin' && !me.is_demo && (
+        <section className="card">
+          <h2>{t('Your data')}</h2>
+          <p className="small muted" style={{ margin: '6px 0 8px' }}>{t('You can delete your account and its data at any time. Sessions expire after 30 days and the audit log is kept for 12 months.')} <a href="https://github.com/mahmudscode/RemitWise/blob/main/docs/data-retention.md" target="_blank" rel="noreferrer">{t('Read the data-retention policy')}</a></p>
+          <button className="btn redo" onClick={() => setDelOpen(true)}>{t('Delete my account')}</button>
+        </section>
+      )}
+      {delOpen && <Modal title={t('Delete my account')} onClose={() => setDelOpen(false)}>
+        <form className="form" onSubmit={async (e) => { e.preventDefault(); try { await api('/me', { method: 'DELETE', body: { confirm: delText } }); window.dispatchEvent(new Event('rw-unauth')) } catch (ex) { setMsg(ex.message) } }}>
+          <p className="small">{t('This permanently removes your account and data. Type DELETE to confirm.')}</p>
+          <input value={delText} onChange={(e) => setDelText(e.target.value)} autoFocus />
+          <button className="btn redo block" disabled={delText.trim().toUpperCase() !== 'DELETE'}>{t('Delete my account')}</button>
+        </form>
+      </Modal>}
 
       {showNew && <Modal title={t('New goal')} onClose={() => setShowNew(false)}>
         <form className="form" onSubmit={create}>

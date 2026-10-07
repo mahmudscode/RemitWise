@@ -92,6 +92,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
             </div>
           )}
           {mode === 'login' && <p className="tiny muted" style={{ marginTop: 14 }}>{t('Platform staff sign in here too: the app opens the admin console for administrator accounts.')}</p>}
+          <p className="tiny muted" style={{ marginTop: 8 }}><a href="https://github.com/mahmudscode/RemitWise/blob/main/docs/data-retention.md" target="_blank" rel="noreferrer">{t('Data-retention policy')}</a></p>
           <p className="tiny muted" style={{ marginTop: 8 }}>{t('By continuing you agree this is a hackathon prototype. No real money, customer data or banking is involved.')}</p>
         </div>}
       </main>
