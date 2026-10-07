@@ -46,6 +46,7 @@ class Engine:
         except Exception:  # a missing model file must not take the whole API down: only 'why' drivers go missing
             self.model = None
         self._start = {}
+        self.adapt = self._load_adaptive()  # per-household correction: only switched on if the offline test showed it helps
         self._senders = ["Rahim", "Karim", "Jamal"]
         self.demo_ids = self._pick_demo()
         self.bdefs, self.bsched, self._bhist, self._loaded = {}, {}, {}, set()
@@ -63,6 +64,28 @@ class Engine:
             g = g.sort_values("due_day")
             self._bhist[bid] = (g.due_day.to_numpy(), g.amount.to_numpy(), g.anomaly.to_numpy().astype(bool))
         self._loaded.add(hid)
+
+    @staticmethod
+    def _load_adaptive() -> dict | None:
+        try:
+            import json
+            a = json.loads((config.ARTIFACTS / "evaluation.json").read_text()).get("adaptive")
+            return dict(alpha=a["alpha"], shrink=a["shrink"], cap=a.get("cap", 10.0)) if a and a.get("adopted") else None
+        except Exception:
+            return None
+
+    def adaptive_bias(self, hid: str, seq: int) -> tuple[float, int]:
+        """How much later (+) / earlier (-) than predicted this household's transfers have recently been."""
+        if not self.adapt:
+            return 0.0, 0
+        ev = self.ev[hid]
+        day = dict(zip(ev.seq.astype(int), ev.day.astype(int)))
+        pred, act = [], []
+        for k in sorted(self.fc.get(hid, {})):
+            if k + 1 <= seq and k in day and k + 1 in day:  # the actual gap k -> k+1 is already known at arrival `seq`
+                pred.append(float(self.fc[hid][k]["gap_p50"]))
+                act.append(float(day[k + 1] - day[k]))
+        return forecast.adaptive_bias(pred, act, self.adapt["alpha"], self.adapt["shrink"], self.adapt["cap"]), len(act)
 
     def default_sender_name(self, hid: str) -> str:
         ids = list(self.demo_ids)
@@ -430,7 +453,13 @@ class Engine:
         r = self.fc.get(hid, {}).get(seq)
         if r is None:
             return None
-        return {k: float(r[k]) for k in ("gap_p10", "gap_p50", "gap_p90", "amt_p10", "amt_p50", "amt_p90")}
+        out = {k: float(r[k]) for k in ("gap_p10", "gap_p50", "gap_p90", "amt_p10", "amt_p50", "amt_p90")}
+        bias, n = self.adaptive_bias(hid, seq)
+        if n:
+            for c in ("gap_p10", "gap_p50", "gap_p90"):
+                out[c] = max(out[c] + bias, 1.0)
+            out["adjust_days"], out["adjust_n"] = round(bias, 1), n
+        return out
 
     def current_forecast(self, hid: str, st: dict) -> dict | None:
         f = st.get("cycle_forecast") or self.arrival_forecast(hid, st["last_seq"])

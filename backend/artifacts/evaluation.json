@@ -1077,6 +1077,50 @@
     "description": "Adds sender-regularity features (gap variation over the last 6 transfers, longest recent gap, gap trend) and calibrates the range separately for senders who look regular / semi-regular / irregular in their own history.",
     "reason": "Not adopted: irregular improves materially failed. The original forecaster is kept."
   },
+  "adaptive": {
+    "adopted": false,
+    "alpha": 0.3,
+    "shrink": 4.0,
+    "cap": 10.0,
+    "before": {
+      "gap_mae": 8.029848375241116,
+      "gap_coverage": 0.8353502016868354,
+      "by_regularity": {
+        "irregular": {
+          "gap_mae": 13.727230796443445,
+          "gap_coverage": 0.7722342733188721
+        },
+        "regular": {
+          "gap_mae": 2.7502111839549848,
+          "gap_coverage": 0.8933002481389578
+        },
+        "semi": {
+          "gap_mae": 9.145529388941354,
+          "gap_coverage": 0.8232876712328767
+        }
+      }
+    },
+    "after": {
+      "gap_mae": 8.393067559590907,
+      "gap_coverage": 0.8155482214888156,
+      "by_regularity": {
+        "irregular": {
+          "gap_mae": 13.894051996035051,
+          "gap_coverage": 0.7418655097613883
+        },
+        "regular": {
+          "gap_mae": 2.9968370647647107,
+          "gap_coverage": 0.8647642679900744
+        },
+        "semi": {
+          "gap_mae": 9.635127801802662,
+          "gap_coverage": 0.8116438356164384
+        }
+      }
+    },
+    "reason": "Not adopted: no meaningful gain (needs 0.05 days lower error with coverage no worse).",
+    "description": "Each household's recent forecast errors (how much later or earlier its transfers came than predicted) nudge its next forecast: an exponentially weighted correction, shrunk while history is short, capped at 10 days. Parameters chosen on calibration households."
+  },
   "kpi_base": {
     "households": 100,
     "bills_per_household_month": 3.7,
@@ -1557,5 +1601,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-07T10:10:57"
+  "generated_at": "2026-10-07T10:12:55"
 }

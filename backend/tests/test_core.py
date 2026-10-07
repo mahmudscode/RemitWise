@@ -1316,3 +1316,39 @@ def test_regularity_features_and_group_calibration_work():
     P = m.predict(X.iloc[300:])
     assert (P.gap_p10 <= P.gap_p50).all() and (P.gap_p50 <= P.gap_p90).all()
     assert len(set(np.round(m.conf_group["gap"], 3))) > 1  # noisier senders get wider ranges
+
+
+# ---------- adaptive household correction ----------
+def test_adaptive_bias_learns_late_transfers_and_shrinks_with_little_history():
+    from app import forecast
+    assert forecast.adaptive_bias([], []) == 0.0
+    one = forecast.adaptive_bias([30], [36])
+    many = forecast.adaptive_bias([30] * 6, [36] * 6)
+    assert 0 < one < many <= 6.0  # more consistent evidence => bigger correction, never more than the miss itself
+    assert forecast.adaptive_bias([30] * 4, [60] * 4) <= 10.0  # capped
+    assert forecast.adaptive_bias([30] * 5, [25] * 5) < 0  # transfers arriving early pull the forecast earlier
+    recent_late = forecast.adaptive_bias([30, 30, 30, 30], [30, 30, 30, 40])
+    old_late = forecast.adaptive_bias([30, 30, 30, 30], [40, 30, 30, 30])
+    assert recent_late > old_late  # newest error counts most
+
+
+def test_adaptive_result_is_recorded_and_only_live_if_it_helped():
+    from app import main
+    a = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["adaptive"]
+    assert a["adopted"] == (a["after"]["gap_mae"] <= a["before"]["gap_mae"] - 0.05)
+    assert (main.ENGINE.adapt is not None) == a["adopted"]
+
+
+def test_adapted_forecast_shows_in_the_why_panel_when_switched_on(client, monkeypatch):
+    from app import main
+    e = main.ENGINE
+    hid = _hid(client)
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    monkeypatch.setattr(e, "adapt", dict(alpha=0.5, shrink=1.0, cap=10.0))
+    seq = 9  # needs earlier forecasts whose outcome is already known
+    plain = e.fc[hid][seq]["gap_p50"]
+    f = e.arrival_forecast(hid, seq)
+    assert f["adjust_n"] >= 3 and abs(f["gap_p50"] - max(plain + f["adjust_days"], 1.0)) < 0.2
+    assert e.arrival_forecast(hid, 3).get("adjust_n") is None  # no history yet, nothing to learn from
+    monkeypatch.setattr(e, "adapt", None)
+    assert "adjust_days" not in e.arrival_forecast(hid, seq)

@@ -153,6 +153,18 @@ class Forecaster:
         return joblib.load(path)
 
 
+def adaptive_bias(pred_p50, actual, alpha: float = 0.5, shrink: float = 2.0, cap: float = 10.0) -> float:
+    """Per-household online correction (days): exponentially weighted mean of how much this household's earlier
+    transfers came later (+) or earlier (-) than predicted, newest weighted most, shrunk toward 0 while history is short."""
+    e = np.asarray(actual, dtype=float) - np.asarray(pred_p50, dtype=float)
+    n = len(e)
+    if n == 0:
+        return 0.0
+    w = alpha * (1 - alpha) ** np.arange(n - 1, -1, -1)
+    bias = float((w * e).sum() / w.sum()) * n / (n + shrink)
+    return float(np.clip(bias, -cap, cap))
+
+
 def naive_forecast(X: pd.DataFrame) -> pd.DataFrame:
     """Baseline: 'same as last time'."""
     return pd.DataFrame(dict(gap=X["last_gap"].to_numpy(), amt=X["last_amt"].to_numpy()), index=X.index)

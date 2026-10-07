@@ -253,6 +253,41 @@ def irregular_experiment(te: pd.DataFrame, h_test: pd.DataFrame, variants: dict)
     return res
 
 
+def _adapted(rows: pd.DataFrame, P: pd.DataFrame, alpha: float, shrink: float) -> pd.DataFrame:
+    """Apply the online correction row by row, using only transfers that had already happened."""
+    out = P.copy()
+    for hid, g in rows.groupby("household_id"):
+        g = g.sort_values("seq")
+        idx = list(g.index)
+        err_pred, err_act = [], []
+        for j, i in enumerate(idx):
+            b = forecast.adaptive_bias(err_pred, err_act, alpha, shrink)
+            for c in ("gap_p10", "gap_p50", "gap_p90"):
+                out.loc[i, c] = max(P.loc[i, c] + b, 1.0)
+            err_pred.append(float(P.loc[i, "gap_p50"]))
+            err_act.append(float(g.loc[i, "target_gap"]))
+    return out
+
+
+def adaptive_experiment(ca, P_ca, te, P_te, h_test) -> dict:
+    """Does a per-household online bias correction help? Parameters are picked on calibration households only."""
+    grid = [(a, k) for a in (0.3, 0.5, 0.7) for k in (1.0, 2.0, 4.0)]
+    cal_mae = {g: float(np.abs(_adapted(ca, P_ca, *g).gap_p50 - ca.target_gap).mean()) for g in grid}
+    alpha, shrink = min(grid, key=cal_mae.get)
+    after = _adapted(te, P_te, alpha, shrink)
+    before_m = forecast_metrics(te, P_te, h_test)
+    after_m = forecast_metrics(te, after, h_test)
+    ob, oa = before_m["overall"], after_m["overall"]
+    off = lambda x: abs(x - config.INTERVAL_COVERAGE)
+    helps = bool(oa["gap_mae_model"] <= ob["gap_mae_model"] - 0.05 and off(oa["gap_coverage"]) <= off(ob["gap_coverage"]) + 0.01)
+    pick = lambda m: {k: dict(gap_mae=v["gap_mae_model"], gap_coverage=v["gap_coverage"]) for k, v in m["by_group"]["regularity"].items()}
+    return dict(adopted=helps, alpha=alpha, shrink=shrink, cap=10.0,
+                before=dict(gap_mae=ob["gap_mae_model"], gap_coverage=ob["gap_coverage"], by_regularity=pick(before_m)),
+                after=dict(gap_mae=oa["gap_mae_model"], gap_coverage=oa["gap_coverage"], by_regularity=pick(after_m)),
+                reason=("Adopted: lower timing error and coverage no worse." if helps else "Not adopted: no meaningful gain (needs 0.05 days lower error with coverage no worse)."),
+                description="Each household's recent forecast errors (how much later or earlier its transfers came than predicted) nudge its next forecast: an exponentially weighted correction, shrunk while history is short, capped at 10 days. Parameters chosen on calibration households.")
+
+
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:
     """Forecast vs actual on the clean test set, model and naive side by side (for the judge chart)."""
     N = forecast.naive_forecast(te)

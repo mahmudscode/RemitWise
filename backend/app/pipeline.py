@@ -33,6 +33,7 @@ def run():
     fc = fc_new if exp["adopted"] else fc_base  # keep the change only if it does not hurt overall and helps irregular senders
     print(f"   irregular-sender experiment: {exp['reason']}")
     fc.save()
+    P_ca = fc.predict(ca)
     P_all = fc.predict(ds)
     P_all["household_id"] = ds["household_id"].to_numpy()
     P_all["seq"] = ds["seq"].to_numpy()
@@ -53,6 +54,9 @@ def run():
     print("4/6 forecast metrics (clean test households) ...")
     fm = evaluation.forecast_metrics(te, P_te, h[h.split == "test"].reset_index(drop=True))
 
+    adaptive = evaluation.adaptive_experiment(ca, P_ca, te, P_te, h[h.split == "test"].reset_index(drop=True))
+    print(f"   adaptive household correction: before MAE {adaptive['before']['gap_mae']:.2f} -> after {adaptive['after']['gap_mae']:.2f} days; {adaptive['reason']}")
+
     print("5/6 policy comparison (simulated year, with vs without) ...")
     cmp_ = evaluation.compare_policies(h, r, l, te, P_te, bmaps)
 
@@ -71,7 +75,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, adaptive=adaptive, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,
