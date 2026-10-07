@@ -202,3 +202,7 @@ html[lang="bn"] body { font-family: 'Noto Sans Bengali', Inter, system-ui, -appl
 .guidedbar button.on { background: #fff; color: var(--navy); }
 .guidedbar button.adm { background: transparent; border: 1px solid rgba(255,255,255,.5); }
 @media (max-width: 760px) { .guidedbar { bottom: 74px; } .guidedbar .lbl { display: none; } }
+
+.demoCode { background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.demoCode b { font-size: 22px; letter-spacing: 3px; color: var(--primary); margin-left: 6px; }
+.demoCode small { display: block; color: var(--muted); }

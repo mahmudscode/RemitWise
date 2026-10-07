@@ -675,3 +675,108 @@ def test_guided_demo_is_admin_only_and_gives_clear_errors(client):
     r = client.post(f"/api/households/{hid}/demo/step", json=dict(step=2), headers=H("admin", ""))
     assert r.status_code == 409 and "step 1" in r.json()["detail"]
     assert client.post(f"/api/households/{hid}/demo/step", json=dict(step=9), headers=H("admin", "")).status_code == 422
+
+
+# ---------- simulated phone OTP and password reset ----------
+def _fresh_family(client, tag):
+    from app import auth
+    auth._OTP_REQS.clear()
+    email = f"otp_{tag}_{abs(hash(tag)) % 10000}@example.com"
+    r = client.post("/api/auth/register", json=dict(role="family", name="Otp Tester", email=email, password="oldpass123"))
+    if r.status_code == 503:
+        pytest.skip("no free demo household")
+    assert r.status_code == 200, r.text
+    return email, r.json()["token"]
+
+
+def _bearer(tok):
+    return {"Authorization": f"Bearer {tok}"}
+
+
+def test_phone_otp_verify_flow_and_code_is_hashed(client):
+    email, tok = _fresh_family(client, "ok")
+    r = client.post("/api/auth/otp/request", json=dict(phone="01712345678"), headers=_bearer(tok))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["sent"] and len(body["demo_code"]) == 6 and "no SMS" in body["note"]
+    assert client.post("/api/auth/otp/verify", json=dict(code="000000" if body["demo_code"] != "000000" else "111111"), headers=_bearer(tok)).status_code == 400
+    ok = client.post("/api/auth/otp/verify", json=dict(code=body["demo_code"]), headers=_bearer(tok))
+    assert ok.status_code == 200 and ok.json()["user"]["phone_verified"] is True
+    assert ok.json()["user"]["phone"].startswith("+8801") and "*" in ok.json()["user"]["phone"]
+    from app import db
+    with db.SessionLocal() as s:  # never stored in plain text
+        stored = [o.code_hash for o in s.query(db.OtpCode).all()]
+    assert stored and all(body["demo_code"] not in h for h in stored)
+
+
+def test_otp_rejects_bad_phone_and_expired_codes(client):
+    email, tok = _fresh_family(client, "exp")
+    assert client.post("/api/auth/otp/request", json=dict(phone="12345"), headers=_bearer(tok)).status_code == 422
+    code = client.post("/api/auth/otp/request", json=dict(phone="+8801812345678"), headers=_bearer(tok)).json()["demo_code"]
+    from app import db
+    import datetime as dt
+    with db.SessionLocal() as s:
+        for o in s.query(db.OtpCode).filter(db.OtpCode.used.is_(False)).all():
+            o.expires_at = db.now() - dt.timedelta(seconds=1)
+        s.commit()
+    r = client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok))
+    assert r.status_code == 400 and "expired" in r.json()["detail"]
+
+
+def test_wrong_code_lockout_kills_even_the_right_code(client):
+    from app import config
+    email, tok = _fresh_family(client, "lock")
+    code = client.post("/api/auth/otp/request", json=dict(phone="01912345678"), headers=_bearer(tok)).json()["demo_code"]
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(config.OTP_MAX_ATTEMPTS):
+        assert client.post("/api/auth/otp/verify", json=dict(code=wrong), headers=_bearer(tok)).status_code == 400
+    r = client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok))
+    assert r.status_code == 429  # locked out: the correct code no longer works until a new one is requested
+
+
+def test_otp_requests_are_rate_limited(client):
+    from app import config
+    email, tok = _fresh_family(client, "rate")
+    for _ in range(config.OTP_MAX_REQUESTS):
+        assert client.post("/api/auth/otp/request", json=dict(phone="01612345678"), headers=_bearer(tok)).status_code == 200
+    assert client.post("/api/auth/otp/request", json=dict(phone="01612345678"), headers=_bearer(tok)).status_code == 429
+
+
+def test_password_reset_by_email_invalidates_old_sessions(client):
+    email, tok = _fresh_family(client, "reset")
+    assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 200
+    r = client.post("/api/auth/reset/request", json=dict(identifier=email))
+    assert r.status_code == 200 and r.json()["demo_code"]
+    code = r.json()["demo_code"]
+    bad = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code="abcdef", new_password="newpass456"))
+    assert bad.status_code == 400
+    weak = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code=code, new_password="short"))
+    assert weak.status_code == 422
+    r2 = client.post("/api/auth/reset/request", json=dict(identifier=email))  # the failed attempt used up nothing; fresh code
+    ok = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code=r2.json()["demo_code"], new_password="newpass456"))
+    assert ok.status_code == 200, ok.text
+    assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 401  # old token no longer works
+    assert client.post("/api/auth/login", json=dict(email=email, password="oldpass123")).status_code == 401
+    assert client.post("/api/auth/login", json=dict(email=email, password="newpass456")).status_code == 200
+
+
+def test_password_reset_by_verified_phone_and_no_account_discovery(client):
+    email, tok = _fresh_family(client, "phone")
+    code = client.post("/api/auth/otp/request", json=dict(phone="01512345678"), headers=_bearer(tok)).json()["demo_code"]
+    assert client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok)).status_code == 200
+    r = client.post("/api/auth/reset/request", json=dict(identifier="01512345678"))
+    ok = client.post("/api/auth/reset/confirm", json=dict(identifier="01512345678", code=r.json()["demo_code"], new_password="viaphone789"))
+    assert ok.status_code == 200
+    assert client.post("/api/auth/login", json=dict(email=email, password="viaphone789")).status_code == 200
+    # unknown identifiers look exactly like real ones
+    ghost = client.post("/api/auth/reset/request", json=dict(identifier="nobody@example.com"))
+    assert ghost.status_code == 200 and ghost.json()["sent"] and len(ghost.json()["demo_code"]) == 6
+    assert client.post("/api/auth/reset/confirm", json=dict(identifier="nobody@example.com", code=ghost.json()["demo_code"], new_password="whatever123")).status_code == 400
+
+
+def test_demo_and_admin_accounts_cannot_be_reset_by_code(client):
+    r = client.post("/api/auth/reset/request", json=dict(identifier="admin@demo.remitwise"))
+    assert r.status_code == 200
+    bad = client.post("/api/auth/reset/confirm", json=dict(identifier="admin@demo.remitwise", code=r.json()["demo_code"], new_password="hijack12345"))
+    assert bad.status_code == 400
+    assert client.post("/api/auth/login", json=dict(email="admin@demo.remitwise", password="demo1234")).status_code == 200

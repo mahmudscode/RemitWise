@@ -90,6 +90,16 @@ export function tb(text) {
 }
 
 const BN = {
+  // phone verification and password reset
+  'Demo: no SMS is sent.': 'ডেমো: কোনো এসএমএস পাঠানো হয় না।', 'Your code:': 'আপনার কোড:', 'Verify your phone': 'আপনার ফোন যাচাই করুন',
+  '{name}, add your mobile number so you can recover your account and get important alerts.': '{name}, আপনার মোবাইল নম্বর যোগ করুন, যাতে অ্যাকাউন্ট পুনরুদ্ধার করতে পারেন এবং জরুরি বার্তা পান।',
+  'Mobile number': 'মোবাইল নম্বর', 'Send code': 'কোড পাঠান', '6-digit code': '৬ সংখ্যার কোড', 'The code works for 5 minutes and allows 5 tries.': 'কোডটি ৫ মিনিট কাজ করবে এবং ৫ বার চেষ্টা করা যাবে।',
+  'Verify phone': 'ফোন যাচাই করুন', 'Use a different number or resend': 'অন্য নম্বর দিন অথবা আবার পাঠান', 'Reset your password': 'পাসওয়ার্ড রিসেট করুন',
+  'Password changed. Sign in with your new password.': 'পাসওয়ার্ড বদলেছে। নতুন পাসওয়ার্ড দিয়ে সাইন-ইন করুন।', 'Back to sign in': 'সাইন-ইনে ফিরুন',
+  'Enter the email or verified mobile number of your account. We will send a 6-digit code.': 'আপনার অ্যাকাউন্টের ইমেইল বা যাচাই করা মোবাইল নম্বর দিন। আমরা একটি ৬ সংখ্যার কোড পাঠাব।',
+  'Email or mobile number': 'ইমেইল বা মোবাইল নম্বর', 'If an account matches, a code has been sent.': 'কোনো অ্যাকাউন্ট মিললে একটি কোড পাঠানো হয়েছে।',
+  'New password (at least 8 characters)': 'নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)', 'Changing your password signs you out everywhere.': 'পাসওয়ার্ড বদলালে সব জায়গা থেকে আপনি সাইন-আউট হয়ে যাবেন।',
+  'Change password': 'পাসওয়ার্ড বদলান', 'Forgot password?': 'পাসওয়ার্ড ভুলে গেছেন?',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

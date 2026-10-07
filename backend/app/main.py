@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -949,6 +950,112 @@ def me(authorization: str | None = Header(None)):
 def logout(authorization: str | None = Header(None)):
     auth.delete_session(auth.bearer(authorization))
     return dict(ok=True)
+
+
+# ---------------- phone OTP (simulated) and password reset ----------------
+class PhoneIn(BaseModel):
+    phone: str = Field(max_length=24)
+
+
+class CodeIn(BaseModel):
+    code: str = Field(max_length=12)
+
+
+class ResetRequestIn(BaseModel):
+    identifier: str = Field(max_length=120)
+
+
+class ResetConfirmIn(BaseModel):
+    identifier: str = Field(max_length=120)
+    code: str = Field(max_length=12)
+    new_password: str = Field(min_length=1, max_length=128)
+
+
+def _me(authorization: str | None) -> db.User:
+    u = auth.user_from_token(auth.bearer(authorization))
+    if u is None:
+        raise HTTPException(401, "Your session has expired. Please sign in again.")
+    return u
+
+
+def _otp_reply(code: str | None) -> dict:
+    out = dict(sent=True, expires_in=config.OTP_TTL_SECONDS)
+    if config.OTP_DEMO_MODE:
+        out.update(demo_code=code, note="Demo: no SMS is sent.")
+    return out
+
+
+@app.post("/api/auth/otp/request")
+def otp_request(body: PhoneIn, authorization: str | None = Header(None)):
+    u = _me(authorization)
+    phone = auth.normalize_phone(body.phone)
+    with SessionLocal() as s:
+        taken = s.query(db.User).filter(db.User.phone == phone, db.User.phone_verified.is_(True), db.User.id != u.id).first()
+        if taken:
+            raise HTTPException(409, "That phone number cannot be used. Try another number.")
+        row = s.get(db.User, u.id)
+        if row.phone != phone:
+            row.phone, row.phone_verified = phone, False
+        s.commit()
+    code = auth.issue_otp(u.id, "verify_phone")
+    db.audit(u.role, "otp_requested", u.household_id, dict(user_id=u.id, purpose="verify_phone"))
+    return _otp_reply(code)
+
+
+@app.post("/api/auth/otp/verify")
+def otp_verify(body: CodeIn, authorization: str | None = Header(None)):
+    u = _me(authorization)
+    auth.check_otp(u.id, "verify_phone", body.code)
+    with SessionLocal() as s:
+        row = s.get(db.User, u.id)
+        if not row.phone:
+            raise HTTPException(400, "Add a phone number first.")
+        row.phone_verified = True
+        s.commit()
+        s.refresh(row)
+    db.audit(u.role, "phone_verified", u.household_id, dict(user_id=u.id))
+    return dict(ok=True, user=auth.public_user(row))
+
+
+@app.post("/api/auth/reset/request")
+def reset_request(body: ResetRequestIn, request: Request):
+    """Same answer whether or not the account exists, so this cannot be used to discover accounts."""
+    ident = body.identifier.strip().lower()
+    auth.check_rate("reset:" + ident, _client(request))
+    auth.record_fail("reset:" + ident, _client(request))  # every request counts toward the sign-in style limit
+    auth.limit_otp_requests("reset-req:" + ident)  # identical limit for real and unknown identifiers
+    u = auth.find_for_reset(body.identifier)
+    code = f"{secrets.randbelow(10**6):06d}"  # unknown identifiers get a lookalike code that never works
+    if u:
+        try:
+            code = auth.issue_otp(u.id, "reset")
+        except HTTPException as ex:
+            if ex.status_code != 429:
+                raise
+        db.audit(u.role, "reset_requested", u.household_id, dict(user_id=u.id))
+    out = _otp_reply(code)
+    out["message"] = "If an account matches, a code has been sent."
+    return out
+
+
+@app.post("/api/auth/reset/confirm")
+def reset_confirm(body: ResetConfirmIn, request: Request):
+    key = "reset-confirm:" + body.identifier.strip().lower()
+    auth.check_rate(key, _client(request))
+    u = auth.find_for_reset(body.identifier)
+    if u is None:
+        auth.record_fail(key, _client(request))
+        raise HTTPException(400, "That code is invalid or has expired. Request a new one.")
+    try:
+        auth.check_otp(u.id, "reset", body.code)
+    except HTTPException:
+        auth.record_fail(key, _client(request))
+        raise
+    auth.check_password_policy(body.new_password, u.email)
+    auth.set_password(u.id, body.new_password)
+    auth.clear_fails(key, _client(request))
+    db.audit(u.role, "password_reset", u.household_id, dict(user_id=u.id))
+    return dict(ok=True, message="Password changed. Sign in with your new password.")
 
 
 # ---------------- admin console (aggregates only) ----------------

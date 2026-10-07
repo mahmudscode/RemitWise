@@ -19,7 +19,7 @@ from collections import defaultdict, deque
 from fastapi import HTTPException
 
 from . import config, db
-from .db import AuthSession, SessionLocal, User
+from .db import AuthSession, OtpCode, SessionLocal, User
 
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 _ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no look-alikes
@@ -147,10 +147,15 @@ def authenticate(email: str, password: str, client: str) -> User:
 
 def public_user(u: User) -> dict:
     out = dict(id=u.id, name=u.name, email=u.email, role=u.role, household_id=u.household_id,
-               sender_city=u.sender_city, is_demo=bool(u.is_demo))
+               sender_city=u.sender_city, is_demo=bool(u.is_demo),
+               phone=mask_phone(u.phone) if u.phone else None, phone_verified=bool(u.phone_verified))
     if u.role == "family":
         out["invite_code"] = u.invite_code
     return out
+
+
+def mask_phone(phone: str) -> str:
+    return phone[:5] + "*" * max(len(phone) - 8, 0) + phone[-3:]
 
 
 def mask_email(email: str) -> str:
@@ -178,4 +183,102 @@ def seed_demo_accounts(engine) -> None:
             add("admin@demo.remitwise", "Admin", "admin", config.DEMO_PASSWORD)
         if config.ADMIN_EMAIL and config.ADMIN_PASSWORD:  # a real, provisioned admin
             add(config.ADMIN_EMAIL, "Administrator", "admin", config.ADMIN_PASSWORD, demo=False)
+        s.commit()
+
+
+# ---- phone numbers, one-time codes (simulated SMS) and password reset ----
+PHONE_RE = re.compile(r"^\+8801[3-9]\d{8}$")
+
+
+def normalize_phone(phone: str) -> str:
+    """Bangladesh mobile numbers: 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX -> +8801XXXXXXXXX."""
+    p = re.sub(r"[\s\-()]", "", phone or "")
+    if p.startswith("+"):
+        pass
+    elif p.startswith("880"):
+        p = "+" + p
+    elif p.startswith("0"):
+        p = "+88" + p
+    if not PHONE_RE.match(p):
+        raise HTTPException(422, "Enter a valid Bangladesh mobile number, for example 01712345678.")
+    return p
+
+
+_OTP_REQS: dict[str, deque] = defaultdict(deque)
+
+
+def _otp_hash(code: str, salt: str) -> str:
+    return hmac.new(bytes.fromhex(salt), code.encode(), hashlib.sha256).hexdigest()
+
+
+def limit_otp_requests(key: str):
+    _check_otp_rate(key)
+
+
+def _check_otp_rate(key: str):
+    q = _OTP_REQS[key]
+    now = time.time()
+    while q and now - q[0] > config.OTP_WINDOW_SECONDS:
+        q.popleft()
+    if len(q) >= config.OTP_MAX_REQUESTS:
+        raise HTTPException(429, "Too many code requests. Please wait a few minutes and try again.")
+    q.append(now)
+
+
+def issue_otp(user_id: int, purpose: str) -> str:
+    """Create a 6-digit code (hashed at rest, 5-minute expiry, limited attempts); older codes stop working."""
+    _check_otp_rate(f"{purpose}:{user_id}")
+    code = f"{secrets.randbelow(10**6):06d}"
+    salt = secrets.token_hex(8)
+    with SessionLocal() as s:
+        s.query(OtpCode).filter(OtpCode.user_id == user_id, OtpCode.purpose == purpose, OtpCode.used.is_(False)).update({"used": True})
+        s.add(OtpCode(user_id=user_id, purpose=purpose, code_hash=f"{salt}${_otp_hash(code, salt)}",
+                      expires_at=db.now() + dt.timedelta(seconds=config.OTP_TTL_SECONDS), attempts=0, used=False))
+        s.commit()
+    return code
+
+
+def check_otp(user_id: int, purpose: str, code: str) -> None:
+    """Raises unless `code` is the live code. Wrong guesses are counted; after the limit the code is dead."""
+    code = (code or "").strip()
+    with SessionLocal() as s:
+        row = (s.query(OtpCode).filter(OtpCode.user_id == user_id, OtpCode.purpose == purpose, OtpCode.used.is_(False))
+               .order_by(OtpCode.id.desc()).first())
+        if row is None or row.expires_at < db.now():
+            raise HTTPException(400, "That code is invalid or has expired. Request a new one.")
+        if row.attempts >= config.OTP_MAX_ATTEMPTS:
+            raise HTTPException(429, "Too many wrong codes. Request a new code.")
+        row.attempts += 1
+        salt, digest = row.code_hash.split("$")
+        ok = code.isdigit() and hmac.compare_digest(_otp_hash(code, salt), digest)
+        if ok:
+            row.used = True
+        s.commit()
+    if not ok:
+        raise HTTPException(400, "That code is invalid or has expired. Request a new one.")
+
+
+def find_for_reset(identifier: str) -> User | None:
+    """Look an account up by email or by a verified phone number. Demo and admin accounts cannot be reset."""
+    ident = (identifier or "").strip()
+    with SessionLocal() as s:
+        if "@" in ident:
+            u = s.query(User).filter(User.email == ident.lower()).first()
+        else:
+            try:
+                phone = normalize_phone(ident)
+            except HTTPException:
+                return None
+            u = s.query(User).filter(User.phone == phone, User.phone_verified.is_(True)).first()
+    if u is None or u.is_demo or u.role == "admin" or u.is_active is False:
+        return None
+    return u
+
+
+def set_password(user_id: int, new_password: str) -> None:
+    """New password; every existing session of the user is invalidated."""
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        u.password_hash = hash_password(new_password)
+        s.query(AuthSession).filter(AuthSession.user_id == user_id).delete()
         s.commit()

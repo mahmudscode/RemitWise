@@ -7,8 +7,8 @@ export const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) } c
 export const setToken = (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY) } catch { /* private mode */ } }
 
 // `role` / `user` options are accepted for older call sites but ignored: the server decides from the token.
-export async function api(path, { method = 'GET', body } = {}) {
-  const token = getToken()
+export async function api(path, { method = 'GET', body, token: tokenOverride } = {}) {
+  const token = tokenOverride ?? getToken()
   let res
   try {
     res = await fetch(`${BASE}/api${path}`, {

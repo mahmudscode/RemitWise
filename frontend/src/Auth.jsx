@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, setToken } from './api'
 import { LangToggle } from './ui'
 import { t } from './i18n'
+import { ForgotPassword, VerifyPhone } from './AuthFlows.jsx'
 
 const ROLES = [
   ['family', 'Family', 'I receive money from a relative abroad'],
@@ -15,6 +16,8 @@ export default function Auth({ onAuthed, lang, changeLang }) {
   const [f, setF] = useState({ name: '', email: '', password: '', invite_code: '', sender_city: '' })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [stage, setStage] = useState(null) // null | 'verify' | 'forgot'
+  const [fresh, setFresh] = useState(null)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
   useEffect(() => { api('/auth/config').then(setCfg).catch((e) => setErr(e.message)) }, [])
@@ -26,7 +29,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
       const d = mode === 'login'
         ? await api('/auth/login', { method: 'POST', body: { email: f.email, password: f.password } })
         : await api('/auth/register', { method: 'POST', body: { role, name: f.name, email: f.email, password: f.password, invite_code: role === 'sender' ? f.invite_code : undefined, sender_city: role === 'family' && f.sender_city ? f.sender_city : undefined } })
-      finish(d)
+      if (mode === 'register') { setToken(d.token); setFresh(d); setStage('verify') } else finish(d)
     } catch (ex) { setErr(ex.message) } finally { setBusy(false) }
   }
   const demo = async (a) => {
@@ -49,7 +52,9 @@ export default function Auth({ onAuthed, lang, changeLang }) {
         </ul>
       </aside>
       <main className="authmain">
-        <div className="card authcard">
+        {stage === 'verify' && fresh && <VerifyPhone token={fresh.token} user={fresh.user} onDone={(u) => onAuthed(u || fresh.user)} />}
+        {stage === 'forgot' && <ForgotPassword onBack={() => setStage(null)} />}
+        {!stage && <div className="card authcard">
           <div className="seg" style={{ marginBottom: 16 }}>
             <button className={mode === 'login' ? 'on' : ''} onClick={() => { setMode('login'); setErr('') }}>{t('Sign in')}</button>
             <button className={mode === 'register' ? 'on' : ''} onClick={() => { setMode('register'); setErr('') }}>{t('Create account')}</button>
@@ -67,6 +72,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
             <div><label>{t('Password')}{mode === 'register' ? t(' (at least 8 characters)') : ''}</label><input type="password" value={f.password} onChange={set('password')} required minLength={mode === 'register' ? 8 : 1} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></div>
             {mode === 'register' && role === 'sender' && <div><label>{t('Family invite code')}</label><input value={f.invite_code} onChange={set('invite_code')} placeholder="RW-XXXXXX" required style={{ textTransform: 'uppercase' }} /><small className="muted">{t('Ask your family for the code shown in their app (Goals → Sharing).')}</small></div>}
             {mode === 'register' && role === 'family' && <div><label>{t('Where does your sender work? (optional)')}</label><input value={f.sender_city} onChange={set('sender_city')} placeholder={t('e.g. Dubai')} maxLength={40} /></div>}
+            {mode === 'login' && <button type="button" className="link" style={{ alignSelf: 'flex-start' }} onClick={() => { setErr(''); setStage('forgot') }}>{t('Forgot password?')}</button>}
             {err && <p className="small txt-red" role="alert">{err}</p>}
             <button className="btn primary block" disabled={busy}>{busy ? t('Please wait…') : mode === 'login' ? t('Sign in') : t('Create {role} account', { role: t(roleInfo[1]).toLowerCase() })}</button>
           </form>
@@ -79,7 +85,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
           )}
           {mode === 'login' && <p className="tiny muted" style={{ marginTop: 14 }}>{t('Platform staff sign in here too: the app opens the admin console for administrator accounts.')}</p>}
           <p className="tiny muted" style={{ marginTop: 8 }}>{t('By continuing you agree this is a hackathon prototype. No real money, customer data or banking is involved.')}</p>
-        </div>
+        </div>}
       </main>
     </div>
   )

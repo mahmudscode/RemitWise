@@ -36,3 +36,10 @@ DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo1234")
 # Admins are provisioned, never self-registered. Set both to create/ensure an admin on startup.
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+# Simulated phone OTP (no SMS gateway). In demo mode the code is returned in the API response and shown on screen.
+OTP_DEMO_MODE = os.getenv("OTP_DEMO_MODE", "true").lower() in ("1", "true", "yes")
+OTP_TTL_SECONDS = 300
+OTP_MAX_ATTEMPTS = 5
+OTP_MAX_REQUESTS = 3        # code requests per window, per account and purpose
+OTP_WINDOW_SECONDS = 600

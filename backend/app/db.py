@@ -91,6 +91,8 @@ class User(Base):
     invite_code = Column(String(16), nullable=True, index=True)  # family only: lets a sender link to this household
     is_demo = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)  # admins can disable an account
+    phone = Column(String(20), nullable=True, index=True)  # +8801XXXXXXXXX; optional
+    phone_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=now)
 
 
@@ -100,6 +102,19 @@ class AuthSession(Base):
     token_hash = Column(String(64), primary_key=True)
     user_id = Column(Integer, index=True)
     expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=now)
+
+
+class OtpCode(Base):
+    """One-time codes for phone verification and password reset. Only a salted hash of the code is stored."""
+    __tablename__ = "otp_codes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, index=True)
+    purpose = Column(String(16))  # verify_phone | reset
+    code_hash = Column(String(140))
+    expires_at = Column(DateTime)
+    attempts = Column(Integer, default=0)
+    used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=now)
 
 
@@ -120,6 +135,10 @@ def init_db():
         d2 = "1" if engine.dialect.name == "sqlite" else "TRUE"
         with engine.begin() as c:
             c.execute(text(f"ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT {d2}"))
+    for col, ddl in (("phone", "VARCHAR(20)"), ("phone_verified", "BOOLEAN DEFAULT " + ("0" if engine.dialect.name == "sqlite" else "FALSE"))):
+        if col not in ucols:  # migration-safe: add the column only if an older database lacks it
+            with engine.begin() as c:
+                c.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
     if "shared" not in cols:
         default = "1" if engine.dialect.name == "sqlite" else "TRUE"
         with engine.begin() as c:
