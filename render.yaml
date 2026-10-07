@@ -27,7 +27,7 @@ services:
       - key: WEB_CONCURRENCY
         value: "1"         # free plan has little CPU; raise on a paid plan (see docs/production-deployment.md)
       - key: OTP_DEMO_MODE
-        value: "false"     # the code is only emailed; set SMTP_* below ("true" shows it on screen, for a demo with no mail server)
+        value: "true"      # demo: the code is shown on screen. Set "false" once SMTP_* below is configured so it is only emailed
       - key: SMTP_HOST
         sync: false        # optional: any SMTP server; makes security codes real emails
       - key: SMTP_USER

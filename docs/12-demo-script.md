@@ -43,6 +43,6 @@ Open the app a minute early so the free server is awake (the app shows "Waking u
    5. *Resolution*: Plan screen, ask the sender to send earlier.
 3. Switch to **বাংলা** mid-demo: the same screens, Bangla text and Bangla read-aloud (needs a Bangla voice on the device).
 4. Admin → Model performance: warning before/after/hybrid table, **60/80/100% table with "Simulated, not measured"**, stress test, "The model serving the app".
-5. Say out loud: the security code arrives by email (configure SMTP first; see README "Email setup"), micro-savings is off by default, and the yield pot is a simulation (synthetic money, illustrative rate, not advice), the business KPIs are a simulated estimate.
+5. Say out loud: the security code is shown on screen in demo mode (a real deployment emails it; see README "Email setup"), micro-savings is off by default, and the yield pot is a simulation (synthetic money, illustrative rate, not advice), the business KPIs are a simulated estimate.
 Extra scenarios to show in under 30 seconds each: Eid expense surge, Medical emergency, Systemic shock.
 Fallbacks: Waking screen has a retry; the Guided demo can be restarted with Reset household.
