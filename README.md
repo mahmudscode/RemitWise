@@ -114,7 +114,7 @@ Sign-in details for judges are in section 11.
 
 **Automated:**
 ```bash
-./run.sh test        # 78 pytest tests, about 7 seconds
+./run.sh test        # 119 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
 ```
 They cover allocator invariants (plans never overspend), summary safety (numbers validated, injection text sanitised), consent and household isolation, bills and the vault, sign-up, sign-in and persistence after a restart, admin endpoints, and a check that the forecaster beats a naive baseline. Tests use a temporary copy of the database, so demo data is untouched.
 
@@ -175,6 +175,17 @@ The admin opens the admin console automatically. The demo accounts exist only wh
 | Automated micro-savings | Off by default, needs consent, ≤ ৳100/day, only when risk is green and bills covered, "Paused to protect your bills". Saving only, no investing | Family → Goals → Micro-savings |
 | Show it is not a budgeting app | One-line explainer under Next remittance and a Budgeting app vs RemitWise comparison on the sign-in page | Home; sign-in page |
 | PostgreSQL and LLM path untested | Groq path tested with a mocked HTTP layer (valid output accepted, invented numbers rejected, outage falls back). PostgreSQL test runner added | `./run.sh test`; `./run.sh test-pg` |
+| Data-retention policy | [docs/data-retention.md](docs/data-retention.md); sessions, codes and audit rows expire; `DELETE /api/me` removes an account and its data | Goals → Your data; sign-in footer link |
+| Systemic shocks | Sandbox button "Systemic shock" (next 3 transfers 21 days later and 30% smaller) and a stress test on the test households | Admin → Simulation sandbox; Model performance → Stress test |
+| Concurrency, latency, resilience | Load-test script and results; clean 503/500 errors, app starts without the model file | [docs/load-test-results.md](docs/load-test-results.md); `backend/scripts/load_test.py` |
+| More tests and security checks | Route-introspecting tests for auth, role escalation, household isolation, injection and bad input; `pip-audit` and `npm audit` clean; coverage 73% | [docs/security-check.md](docs/security-check.md) |
+| Improve irregular senders | Regularity features and group-wise calibration tried; **not adopted** (gain is within noise) | Admin → Model performance → Experiment |
+| Sequence models | LightGBM with lag features and a neural net over the last 6 gaps tried; **neither beat the baseline** | Admin → Model performance → Experiment |
+| Fairness and drift monitoring | Rolling error and coverage, per-group flags, input drift (PSI), live warning rate | Admin → Monitoring |
+| Adaptive household personalization | Online per-household forecast correction built and evaluated; **not adopted** (it made timing error worse on this data); wired to switch on automatically if a future evaluation shows a gain | Admin → Model performance → Experiment |
+| Voice for rural users | 🔊 read aloud (Home, warning, AI summary) and 🎤 three fixed questions, Bangla and English, graceful fallback without a Bangla voice or microphone | Home page header |
+| Business KPIs | Editable-assumption KPI card plus a randomized [pilot plan](docs/pilot-plan.md) | Admin → Model performance → Business KPIs |
+| Real MFS events | Signed (HMAC) transaction webhook with idempotency; schema in [docs/09-api-contracts.md](docs/09-api-contracts.md); not a live upay feed | `POST /api/webhooks/transactions`; `backend/scripts/send_test_webhook.py` |
 
 **Warning threshold, before vs after** (100 held-out synthetic households, 11,521 checkpoints):
 
@@ -197,11 +208,26 @@ Higher precision means fewer false alarms but some shortfalls are caught later o
 
 Compliance is an assumption; a real pilot would measure it.
 
+**Stress test: systemic shock** (3 consecutive transfers 21 days later each and 30% smaller; 100 test households):
+
+| | Normal | Under shock |
+|---|---|---|
+| Timing error (MAE) | 7.9 days | 20.9 days |
+| Timing range coverage (target 80%) | 83% | 26% |
+| Warning precision / recall | 0.90 / 0.52 | 1.00 / 0.74 |
+| Average warning lead | 4.0 days | 1.9 days |
+
+The forecaster was never trained on shocks, so its ranges lose most of their coverage. Warnings still fire because they read the live balance, but give less notice. A real deployment would add a corridor-level alert and retrain on shock periods.
+
+**Load test** (laptop, one worker, SQLite, client and server on the same machine): 185 requests/s at 50 concurrent users, p50 257 ms, p95 372 ms, 0% errors; 198 requests/s at 10 users, p50 50 ms. This is a smoke test, not a production benchmark ([details](docs/load-test-results.md)).
+
+**Experiments that did not win, kept as evidence:** regularity features plus group calibration (irregular-sender timing error 13.73 to 13.72 days: noise), temporal LightGBM (+0.01 days), neural net over recent gaps (+0.24 days, worse coverage), per-household adaptive correction (8.03 to 8.39 days). The current LightGBM stays live in each case.
+
 **Guided demo.** Admin → Simulation sandbox → *Reset household*, then steps 1 to 5: remittance arrives, accept allocation, unusual bill, warning, resolution.
 
 **PostgreSQL.** Run `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data in it, runs the suite). It has **not been run here** because Docker is not installed on this machine.
 
-**Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on governed upay data, real upay payment/identity/remittance integrations, production PostgreSQL and load/security testing, real investment products. These are our next phase, a controlled pilot with governed upay data.
+**Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on real anonymised upay data, real upay payment and identity integration (the webhook adapter is the bridge), production PostgreSQL at scale and formal penetration testing, real investment products. These are our next phase, a controlled pilot with governed upay data.
 
 ## Honest status
 

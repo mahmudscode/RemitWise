@@ -13,7 +13,7 @@ Context: AI DEV FEST 2026 AI Hackathon, on-site final. Phase 1 score 74.7/100. T
 5. **All data stays synthetic.** No real customer data, no real money movement, no real investment products.
 6. **Keep the existing design language** (cards, tokens in `frontend/src/styles.css`). Keep explanations and "AI estimate" labels.
 7. Do the tasks **in priority order**. Each task is independent; stop when time runs out.
-8. Update `README.md` at the end (Task 11) so judges can see what changed.
+8. Update `README.md` at the end (Task 22) so judges can see what changed.
 
 ---
 
@@ -166,9 +166,128 @@ Commit: `Test LLM path with mocked Groq and document PostgreSQL test run`
 
 ---
 
-## Task 11. Update README (do last)
+## Priority 3: Remaining judge requests (do only if time remains)
 
-Add a section **"Final-day updates (based on Phase 1 feedback)"** with a table: judge comment → what was built → where to see it (screen / button). Include the new before/after warning numbers and the 60/80/100% table. Keep "simulated, not measured" wording.
+These cover every other buildable item from the Phase 1 feedback. Same rules: one commit per task, tests passing, synthetic data only.
+
+### Task 11. Data-retention policy (quick)
+**Judge 2 (Responsible AI):** "Establish data-retention policies."
+
+Do:
+- Add `docs/data-retention.md`: what is stored (accounts, sessions, plans, audit log, demo state), how long (e.g. sessions 30 days, audit 12 months, deleted accounts purged in 30 days), who can see it, and how a family deletes its data.
+- Implement the parts that are cheap: expire sessions older than the limit on startup/login; an endpoint `DELETE /api/me` that deletes the signed-in family/sender account and its data (admin and demo households excluded), with a confirmation in the UI.
+- Link the policy from the README and the sign-in page footer.
+
+Commit: `Add data-retention policy and account self-deletion`
+
+### Task 12. Systemic shock scenario (quick)
+**Judge 1 (AI/ML depth):** "Test robustness against unexpected systemic shocks."
+
+Do:
+- New sandbox scenario `systemic_shock`: all remittances delayed ~21 days **and** amounts cut 30% for the selected household (simulates a remittance-corridor disruption or exchange-rate shock).
+- In `evaluation.py`, add a **shock stress test** on the test households: apply the same shock and report forecast coverage, warning recall and mean lead days under shock vs normal. Save as `evaluation.json` → `stress`.
+- Show a "Stress test: systemic shock" table in Admin → Model performance, with an honest note (the model was not trained on shocks; the widening rule for overdue transfers is what protects families).
+
+Commit: `Add systemic shock scenario and stress test`
+
+### Task 13. Load and latency test (quick)
+**Judge 2 (Scalability):** "Concurrency, latency, resilience and high-volume transaction testing."
+
+Do:
+- Add `backend/tests/load/locustfile.py` (Locust) or a simple `asyncio + httpx` script `backend/scripts/load_test.py` that signs in the demo accounts and hits `/api/home`, `/api/shortfall`, `/api/forecast` with N concurrent users.
+- Run it locally (e.g. 50 concurrent users, 60 s) and save results (requests/s, p50/p95 latency, error rate) to `docs/load-test-results.md`.
+- Add one resilience check: the API returns a clean error (not a crash) if the model file is missing or the DB is locked.
+
+Commit: `Add load test script and record latency results`
+
+### Task 14. More automated tests and basic security checks
+**Judge 2 (Prototype / Security):** "Larger automated test coverage" and "formal security testing".
+
+Do:
+- Add `pytest-cov`; report coverage in the README.
+- New tests: role escalation (sender/family cannot call admin endpoints), household isolation for every family endpoint, rate-limit on login, prompt-injection strings in all free-text fields, input validation (negative amounts, huge numbers, bad dates).
+- Run `pip-audit` (backend) and `npm audit` (frontend); fix high-severity issues if simple, record results in `docs/security-check.md`.
+
+Commit: `Expand tests and add basic security checks`
+
+### Task 15. Better forecasts for irregular senders
+**Judge 3 (AI/ML depth):** "Improve prediction for irregular senders."
+
+Where: `backend/app/forecast.py`, `evaluation.py`.
+
+Do:
+- Add sender-regularity features (gap coefficient of variation over last 6 transfers, longest recent gap, trend of gaps) and/or **group-wise conformal calibration** (separate calibration offsets per regularity class: regular / semi / irregular) so ranges are honest for each group.
+- Report before/after on the fairness check: timing error and range coverage **per group**, especially irregular senders (currently 13.7 days MAE).
+- Keep the change only if it does not make overall MAE or coverage worse; record the result either way in `evaluation.json` → `irregular_experiment`.
+
+Commit: `Improve irregular-sender forecasts with regularity features and group calibration`
+
+### Task 16. Optional sequence-model experiment
+**Judge 3 (AI/ML depth):** "Explore stronger temporal or sequence models where they demonstrably outperform the existing baseline."
+
+Do (time-boxed, 1 hour max):
+- A small sequence model over each household's last N gaps/amounts (e.g. a GRU in PyTorch, or LightGBM with lag/rolling features as a cheaper "temporal" variant).
+- Compare against the current model on the same test households (timing MAE, amount error, coverage). Show the comparison in Admin → Model performance.
+- **Only switch to it if it wins.** Otherwise keep LightGBM and show the experiment as evidence ("we tried; it did not beat the baseline").
+
+Commit: `Add sequence-model experiment compared against LightGBM`
+
+### Task 17. Model-drift and fairness monitoring panel
+**Judge 2 (Responsible AI):** "Fairness and model-drift monitoring."
+
+Do:
+- In Admin, a "Monitoring" panel computed from recent live/demo events: rolling forecast error, range coverage, warning rate, and input drift (PSI or simple mean shift of key features vs training data).
+- Per-group breakdown (regular / irregular senders, rural / urban) with a red flag when coverage drops below 70% or a group's error is far above the others.
+- Text note: "In production this runs on real data and alerts the model owner."
+
+Commit: `Add drift and fairness monitoring panel`
+
+### Task 18. Adaptive household personalization
+**Judge 2 (Innovation):** "Adaptive household-level personalization that learns from changing remittance and spending behaviour."
+
+Do:
+- Per-household adaptive layer on top of the global model: an exponentially weighted correction of the forecast using that household's recent forecast errors (online bias correction), and spending baselines that update with recent weeks.
+- Show it in the Why? panel: "Adjusted for your household: +2 days (your transfers have been later than predicted recently)."
+- Evaluate: test-set MAE with vs without the adaptive layer; keep only if it helps.
+
+Commit: `Add adaptive per-household forecast correction`
+
+### Task 19. Voice support (Bangla and English)
+**Judges 1 and 2 (Prototype):** "Voice localization for non-tech-savvy rural users."
+
+Do (browser APIs, no paid service):
+- **Read aloud:** a 🔊 button on Home, the warning banner and the AI summary using the Web Speech API `speechSynthesis` (`lang` = `bn-BD` or `en-US`, fallback message if no Bangla voice on the device).
+- **Voice question:** a 🎤 button using `SpeechRecognition` where available, supporting a few intents mapped to existing data (no free-form LLM decisions): "কত টাকা খরচ করতে পারি / how much can I spend", "পরের টাকা কবে আসবে / when is the next transfer", "কোন বিল বাকি / which bills are due". Answer with text + speech.
+- Hide the mic gracefully on browsers without support.
+
+Commit: `Add read-aloud and simple voice questions in Bangla and English`
+
+### Task 20. upay KPI and incremental revenue view
+**Judge 3 (Business impact):** "Establish business KPIs: wallet retention, transaction frequency, savings behaviour, customer retention and incremental revenue."
+
+Do:
+- Admin → new "Business KPIs (simulated)" card: kept-in-wallet %, digital bill payments per household per month, savings rate, and an **illustrative incremental value** estimate with every assumption shown as an editable input (e.g. bill-payment fee per transaction, float value per ৳ kept per day). No hidden constants.
+- Label clearly: "Simulated estimate. A controlled pilot would measure these."
+- Add a short `docs/pilot-plan.md`: randomized pilot design (treatment vs control families), KPIs above, duration, sample size estimate, success thresholds.
+
+Commit: `Add simulated business KPI view and pilot plan`
+
+### Task 21. Webhook adapter for real MFS events
+**Judge 1 (Scalability):** "Replace simulated transaction events with actual MFS core-banking webhooks."
+
+Do:
+- `POST /api/webhooks/transactions` that accepts a documented JSON event (remittance received, cash-out, bill paid) with **HMAC signature verification** and idempotency key.
+- An adapter that converts the event into the same internal events the simulator produces, so forecasts and warnings update.
+- A small script `backend/scripts/send_test_webhook.py` and a test showing a signed event updates a demo household; unsigned events are rejected.
+- Document the event schema in `docs/09-api-contracts.md`.
+
+Commit: `Add signed transaction webhook adapter`
+
+---
+
+## Task 22. Update README (do last)
+
+Add a section **"Final-day updates (based on Phase 1 feedback)"** with a table: judge comment → what was built → where to see it (screen / button). Include the new before/after warning numbers, the 60/80/100% table, stress-test and load-test results. Keep "simulated, not measured" wording.
 
 Commit: `Document final-day updates in README`
 
@@ -177,9 +296,9 @@ Commit: `Document final-day updates in README`
 ## Out of scope today (explain in the pitch, do not build)
 
 - Live pilot with real remittance families, real compliance measurement
-- Retraining on real anonymised upay data; sequence models
-- Real upay payment, identity, remittance webhooks
-- Production PostgreSQL deployment, load and security testing
+- Retraining on real anonymised upay data
+- Real upay payment and identity integration (the webhook adapter in Task 21 is the bridge)
+- Production PostgreSQL deployment at scale and formal penetration testing
 - Real investment products for micro-savings
 
 Pitch line: "These are our next phase, a controlled pilot with governed upay data."
