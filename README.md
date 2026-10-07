@@ -115,7 +115,7 @@ Sign-in details for judges are in section 11.
 
 **Automated:**
 ```bash
-./run.sh test        # 55 pytest tests, about 6 seconds
+./run.sh test        # 78 pytest tests, about 7 seconds
 ```
 They cover allocator invariants (plans never overspend), summary safety (numbers validated, injection text sanitised), consent and household isolation, bills and the vault, sign-up, sign-in and persistence after a restart, admin endpoints, and a check that the forecaster beats a naive baseline. Tests use a temporary copy of the database, so demo data is untouched.
 
@@ -137,14 +137,14 @@ They cover allocator invariants (plans never overspend), summary safety (numbers
 | Late fees / year | ৳504 | ৳262 | ৳101 |
 | Kept in wallet after 24h | 13% | 27% | 76% |
 
-A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, fees and wallet retention. Forecast timing error is 8.0 days against 10.4 for a naive guess, amount error 58% against 80%, and range coverage 84% / 80% (target 80%). The shortfall warning has precision 0.72 and recall 0.73 (a simple rule: 0.95 and 0.55). These figures depend on the simulation's behaviour assumptions, so run `./run.sh build` to reproduce them.
+A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, fees and wallet retention. Forecast timing error is 8.0 days against 10.4 for a naive guess, amount error 58% against 80%, and range coverage 84% / 80% (target 80%). The shortfall warning was tuned for precision in the final-day update (before 0.71 / 0.73, now 0.91 / 0.53; a simple rule: 0.95 / 0.55; see the section below). These figures depend on the simulation's behaviour assumptions, so run `./run.sh build` to reproduce them.
 
 ## 10. Other configuration and access
 
 - **Roles.** The sign-in page lets people create a **Family** account or a **Sender abroad** account (a sender needs the family's invite code, shown under Goals → Sharing). Admins cannot self-register.
 - **Persistence.** Accounts, sessions and data live in the database, so a refresh or a new browser session keeps users signed in with their data. On free hosting with SQLite, data resets on every redeploy; use PostgreSQL to keep it.
 - **Privacy.** The admin sees aggregates and masked emails only. The simulation sandbox works only on the three demo households, never on real accounts. Sender endpoints return only consented fields.
-- **Language.** English only.
+- **Language.** English and বাংলা (toggle in the sidebar and on the sign-in page).
 - **Data card.** `backend/artifacts/data_card.md` lists every simulation assumption.
 
 ### Deployment
@@ -162,10 +162,52 @@ A simple fixed rule beats RemitWise on shortfall days; RemitWise wins on bills, 
 
 The admin opens the admin console automatically. The demo accounts exist only while `SEED_DEMO_ACCOUNTS=true`; on a public deployment, change `DEMO_PASSWORD` and provision your own admin.
 
+## Final-day updates (based on Phase 1 feedback)
+
+| Judge comment | What was built | Where to see it |
+|---|---|---|
+| Warning precision/recall 0.72/0.73 vs simple rule 0.95; show before/after | Threshold re-selected on calibration households only (lowest threshold with precision ≥ 0.85), full threshold sweep stored | Admin → Model performance → "Warning threshold: before vs after" table and chart |
+| Show 60/80/100% compliance; stress it is simulated | All three levels side by side next to "No plan" and "Fixed 50/30/20", with a "Simulated, not measured" banner; compact version for families | Admin → Model performance; family **Insights** |
+| Add delayed remittance, Eid surge, medical/electricity bill scenarios | `Eid expense surge` (+40% needs for 10 days) and `Medical emergency` (৳8,000), readable warning reasons | Admin → Simulation sandbox → "Real-life scenarios" |
+| Bangla UI | EN / বাংলা toggle (saved in the browser); Home, remittance pop-up, Payments, Plan, Goals, Insights, Sender, sign-in, AI summaries (Bangla template, or Groq when a key is set) | Toggle in the sidebar and sign-in page |
+| Use upay brand colours | Palette sampled from the upay logo in the hackathon guideline (blue `#0d56a5`, yellow `#fcd704`), "for upay" line, WCAG AA contrast checked. The logo image is not copied | Whole app |
+| Faster first load; smooth demo path | "Waking up the server…" screen with retry and an early health ping, skeleton cards on Home, **Guided demo** with 5 steps (also a floating bar over the family app) | Admin → Simulation sandbox → Guided demo |
+| Phone OTP and password reset | Simulated OTP (hashed, 5-minute expiry, 5 attempts, rate-limited) and email/phone password reset that signs out every session. Demo mode shows the code on screen: no SMS is sent | Sign-up → "Verify your phone"; sign-in → "Forgot password?" |
+| Automated micro-savings | Off by default, needs consent, ≤ ৳100/day, only when risk is green and bills covered, "Paused to protect your bills". Saving only, no investing | Family → Goals → Micro-savings |
+| Show it is not a budgeting app | One-line explainer under Next remittance and a Budgeting app vs RemitWise comparison on the sign-in page | Home; sign-in page |
+| PostgreSQL and LLM path untested | Groq path tested with a mocked HTTP layer (valid output accepted, invented numbers rejected, outage falls back). PostgreSQL test runner added | `./run.sh test`; `./run.sh test-pg` |
+
+**Warning threshold, before vs after** (100 held-out synthetic households, 11,521 checkpoints):
+
+| | Threshold | Precision | Recall | F1 | Avg. lead |
+|---|---|---|---|---|---|
+| Before (best F1) | 0.45 | 0.71 | 0.73 | 0.72 | 6.8 days |
+| After (precision-tuned) | 0.70 | 0.91 | 0.53 | 0.67 | 3.5 days |
+| Simple rule | – | 0.95 | 0.55 | 0.69 | 2.8 days |
+
+Higher precision means fewer false alarms but some shortfalls are caught later or missed. At this threshold the simple rule is still slightly ahead on precision and recall; the model's edge is a longer warning lead and a tunable curve.
+
+**Simulated year at 60 / 80 / 100% compliance. Simulated, not measured:**
+
+| | No plan | Fixed 50/30/20 (80%) | RemitWise 60% | RemitWise 80% | RemitWise 100% |
+|---|---|---|---|---|---|
+| Shortfall days / year | 36.7 | 9.8 | 13.8 | 13.2 | 13.1 |
+| Bills on time | 90% | 95% | 97% | 98% | 99% |
+| Late fees / year | ৳504 | ৳262 | ৳175 | ৳101 | ৳60 |
+| Kept in wallet after 24h | 13% | 27% | 62% | 76% | 87% |
+
+Compliance is an assumption; a real pilot would measure it.
+
+**Guided demo.** Admin → Simulation sandbox → *Reset household*, then steps 1 to 5: remittance arrives, accept allocation, unusual bill, warning, resolution.
+
+**PostgreSQL.** Run `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data in it, runs the suite). It has **not been run here** because Docker is not installed on this machine.
+
+**Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on governed upay data, real upay payment/identity/remittance integrations, production PostgreSQL and load/security testing, real investment products. These are our next phase, a controlled pilot with governed upay data.
+
 ## Honest status
 
-- The app and tests were verified against **SQLite**. PostgreSQL support exists (SQLAlchemy and `DATABASE_URL`, compose file included) but has **not been run**.
-- The Groq call was **not exercised** (no API key was available). The validated template path is what was tested.
-- Sign-in is real (salted hashes, hashed tokens, rate limiting, server-side roles) but it is a hackathon implementation: no email verification or password reset, and tokens live in `localStorage`.
+- The app and tests were verified against **SQLite**. PostgreSQL support exists (SQLAlchemy and `DATABASE_URL`, `./run.sh test-pg`) but has **not been run**.
+- The Groq call is tested through a mocked HTTP layer; it has **not been called against the real service** (no API key was available).
+- Sign-in is real (salted hashes, hashed tokens, rate limiting, server-side roles) but it is a hackathon implementation: phone OTP and password reset are simulated (no SMS is sent), and tokens live in `localStorage`.
 - Behaviour change under RemitWise is a simulation **assumption** (the compliance level). Real remittance patterns may differ.
 - Money movement is simulated.
