@@ -216,6 +216,15 @@ def stress_test(h, r, l, te, P_te, P_all_df, bmaps, threshold: float) -> dict:
         note="The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance.")
 
 
+def kpi_base(h, bdefs) -> dict:
+    """Volumes the business-KPI view multiplies by (test households): bills and remittance per household per month."""
+    t = h[h.split == "test"]
+    n_bills = bdefs[bdefs.household_id.isin(t.household_id)].groupby("household_id").size().reindex(t.household_id).fillna(0)
+    monthly_remit = t["typical_amount"] * 30.0 / t["gap_mean"]
+    return dict(households=int(len(t)), bills_per_household_month=round(float(n_bills.mean()), 2),
+                monthly_remittance=round(float(monthly_remit.mean())), source="synthetic test households")
+
+
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:
     """Forecast vs actual on the clean test set, model and naive side by side (for the judge chart)."""
     N = forecast.naive_forecast(te)

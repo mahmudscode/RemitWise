@@ -945,6 +945,12 @@
     },
     "note": "The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance."
   },
+  "kpi_base": {
+    "households": 100,
+    "bills_per_household_month": 3.7,
+    "monthly_remittance": 29343,
+    "source": "synthetic test households"
+  },
   "bills": {
     "n_estimates": 1622,
     "estimate_mape_model": 0.1109104893440539,
@@ -1419,5 +1425,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-07T09:59:01"
+  "generated_at": "2026-10-07T10:05:07"
 }

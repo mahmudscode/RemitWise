@@ -1150,3 +1150,8 @@ def test_login_is_rate_limited_per_account_and_client(client):
     codes = [client.post("/api/auth/login", json=dict(email="victim@example.com", password="x" * 9)).status_code for _ in range(auth.MAX_FAILS + 2)]
     assert codes[: auth.MAX_FAILS] == [401] * auth.MAX_FAILS and codes[-1] == 429
     auth._FAILS.clear()
+
+
+def test_kpi_base_volumes_are_saved_for_the_business_view():
+    k = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["kpi_base"]
+    assert k["households"] > 0 and 1 <= k["bills_per_household_month"] <= 10 and k["monthly_remittance"] > 5000

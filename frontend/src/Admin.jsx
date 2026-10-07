@@ -178,6 +178,7 @@ function Model({ ev, comp, per, person }) {
       </section>
       <WarningTuning w={w} />
       {ev.stress && <StressTest st={ev.stress} />}
+      {ev.kpi_base && <Kpis ev={ev} />}
       <section className="card">
         <h2 style={{ marginBottom: 10 }}>Responsible AI checks</h2>
         <div className="chiprow">{CHECKS.map((c) => <span className="okchip" key={c}>✓ {c}</span>)}</div>
@@ -223,6 +224,51 @@ function Guided({ guided }) {
           </button>
         ))}
       </div>
+    </section>
+  )
+}
+
+const KPI_DEFAULTS = { compliance: 0.8, walletBase: 35, fee: 5, daysHeld: 15, floatRate: 4 }
+
+function Kpis({ ev }) {
+  const [a, setA] = useState(KPI_DEFAULTS)
+  const num = (k) => (e) => setA({ ...a, [k]: e.target.value === '' ? '' : +e.target.value })
+  const sum = ev.compare.summary
+  const base = sum.find((r) => r.policy === 'baseline')
+  const rw = sum.find((r) => r.policy === 'remitwise' && r.compliance === +a.compliance)
+  const kb = ev.kpi_base
+  const n = (x) => +x || 0
+  // every number below is multiplied out from the visible inputs; nothing is hidden
+  const payBase = kb.bills_per_household_month * n(a.walletBase) / 100
+  const payRw = kb.bills_per_household_month * +a.compliance  // plan followed => bills run through wallet auto-pay
+  const extraPay = Math.max(payRw - payBase, 0)
+  const feeYear = extraPay * n(a.fee) * 12
+  const extraKept = (rw.retained_share - base.retained_share) * kb.monthly_remittance
+  const floatYear = extraKept * 12 * (n(a.daysHeld) / 365) * (n(a.floatRate) / 100)
+  const rows = [
+    ['Kept in wallet after 24h', pct(base.retained_share), pct(rw.retained_share), `${taka(extraKept)} more per household per month`],
+    ['Digital bill payments / household / month', payBase.toFixed(1), payRw.toFixed(1), `+${extraPay.toFixed(1)} payments`],
+    ['Savings rate', pct(base.savings_rate), pct(rw.savings_rate), 'share of income saved'],
+    ['Bills paid on time', pct(base.on_time_rate), pct(rw.on_time_rate), 'fewer late fees for the family'],
+  ]
+  const field = (k, label, unit) => <label className="small" key={k}>{label}<div className="row"><input type="number" min="0" step="any" value={a[k]} onChange={num(k)} style={{ maxWidth: 110 }} /><span className="muted">{unit}</span></div></label>
+  return (
+    <section className="card">
+      <div className="row between wrap"><h2>Business KPIs (simulated)</h2><span className="ai">Simulated</span></div>
+      <div className="simbanner"><b>Simulated estimate.</b> A controlled pilot would measure these. Edit any assumption below; nothing is hidden.</div>
+      <div className="row wrap" style={{ gap: 14, margin: '8px 0' }}>
+        <label className="small">Plan followed in<div><select value={a.compliance} onChange={(e) => setA({ ...a, compliance: +e.target.value })}>{[0.6, 0.8, 1.0].map((c) => <option key={c} value={c}>{pct(c)} of cycles</option>)}</select></div></label>
+        {field('walletBase', 'Bills paid via wallet today (no plan)', '%')}
+        {field('fee', 'Fee per bill payment', '৳')}
+        {field('daysHeld', 'Days a kept taka stays in wallet', 'days')}
+        {field('floatRate', 'Value of held money', '% / year')}
+      </div>
+      <table><thead><tr><th>KPI</th><th>No plan</th><th>With RemitWise</th><th>Difference</th></tr></thead>
+        <tbody>{rows.map(([k, x, y, d]) => <tr key={k}><td>{k}</td><td>{x}</td><td><b>{y}</b></td><td className="muted">{d}</td></tr>)}
+          <tr><td>Customer retention</td><td colSpan="3" className="muted">Not simulated. Only a pilot can measure whether families stay longer.</td></tr></tbody></table>
+      <p style={{ marginTop: 10 }}><b>Illustrative incremental value per household per year: {taka(feeYear + floatYear)}</b>
+        <span className="muted small"> = bill-payment fees {taka(feeYear)} ({extraPay.toFixed(1)} extra payments × ৳{n(a.fee)} × 12) + value of held money {taka(floatYear)} ({taka(extraKept)} × 12 × {n(a.daysHeld)}/365 × {n(a.floatRate)}%)</span></p>
+      <p className="tiny muted" style={{ marginTop: 6 }}>Volumes come from {kb.households} synthetic test households ({kb.bills_per_household_month} bills and {taka(kb.monthly_remittance)} of remittances per household per month). See docs/pilot-plan.md for how a randomized pilot would measure the real effect.</p>
     </section>
   )
 }

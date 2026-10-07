@@ -65,7 +65,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, stress=st_, bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,
