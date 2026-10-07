@@ -91,6 +91,7 @@ export function tb(text) {
 
 const BN = {
   // navigation and roles
+  'for upay': 'উপায়-এর জন্য',
   Home: 'হোম', Payments: 'পেমেন্ট', Plan: 'পরিকল্পনা', Goals: 'লক্ষ্য', Insights: 'অন্তর্দৃষ্টি',
   'Family wallet': 'পারিবারিক ওয়ালেট', 'Sender abroad': 'প্রবাসী প্রেরক', Administrator: 'অ্যাডমিনিস্ট্রেটর', Family: 'পরিবার',
   'I receive money from a relative abroad': 'আমি বিদেশ থেকে আত্মীয়ের পাঠানো টাকা পাই', 'I send money home': 'আমি দেশে টাকা পাঠাই',

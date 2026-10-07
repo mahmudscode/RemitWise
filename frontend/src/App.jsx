@@ -107,7 +107,7 @@ export default function App() {
       {state && page !== 'admin' && page !== 'sender' && (
         <div className="shell">
           <aside className="sidebar">
-            <div className="brand"><span className="logo">R</span>RemitWise</div>
+            <div style={{ marginBottom: 22 }}><div className="brand" style={{ marginBottom: 2 }}><span className="logo">R</span>RemitWise</div><div className="forupay" style={{ paddingLeft: 44 }}><b>{t('for upay')}</b></div></div>
             <div style={{ margin: '-10px 0 14px' }}><LangToggle lang={lang} onChange={changeLang} /></div>
             {NAV.map(([k, label]) => <button key={k} className={`nav ${page === k ? 'on' : ''}`} onClick={() => go(k)}><Icon name={k} />{t(label)}</button>)}
             <div className="sidefoot">

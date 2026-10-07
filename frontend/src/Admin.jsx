@@ -148,9 +148,9 @@ function Model({ ev, comp, per, person }) {
           <div className="row between"><h2>Days until next transfer: forecast vs actual</h2><span className="ai">Test set</span></div>
           <div style={{ height: 250 }}><ResponsiveContainer><ComposedChart data={samples}>
             <CartesianGrid vertical={false} stroke="#eef2f6" /><XAxis dataKey="i" fontSize={11} tickLine={false} /><YAxis fontSize={11} width={30} tickLine={false} axisLine={false} /><Tooltip /><Legend />
-            <Area isAnimationActive={false} dataKey="band" name="Model 80% range" stroke="none" fill="#0e6e9c" fillOpacity={0.12} />
-            <Line isAnimationActive={false} dataKey="actual" name="Actual" stroke="#0f2a44" dot={false} strokeWidth={2} />
-            <Line isAnimationActive={false} dataKey="model" name="RemitWise model" stroke="#0e6e9c" dot={false} strokeWidth={2.5} />
+            <Area isAnimationActive={false} dataKey="band" name="Model 80% range" stroke="none" fill="#0d56a5" fillOpacity={0.12} />
+            <Line isAnimationActive={false} dataKey="actual" name="Actual" stroke="#0a3d7a" dot={false} strokeWidth={2} />
+            <Line isAnimationActive={false} dataKey="model" name="RemitWise model" stroke="#0d56a5" dot={false} strokeWidth={2.5} />
             <Line isAnimationActive={false} dataKey="naive" name="Baseline (same as last time)" stroke="#8a97a5" dot={false} strokeDasharray="5 4" />
           </ComposedChart></ResponsiveContainer></div>
           <p className="tiny muted">60 random test cases sorted by actual gap. The model's range covers about {pct(o.gap_coverage)} of outcomes.</p>
@@ -195,9 +195,9 @@ function WarningTuning({ w }) {
         <tbody>{rows.map(([label, m, hasT]) => <tr key={label}><td>{label}</td><td>{hasT ? m.threshold.toFixed(2) : '–'}</td><td><b>{m.precision.toFixed(2)}</b></td><td>{m.recall.toFixed(2)}</td><td>{m.f1.toFixed(2)}</td><td>{ld(m.mean_lead_days)}</td></tr>)}</tbody></table>
       <div style={{ height: 230, marginTop: 12 }}><ResponsiveContainer><ComposedChart data={w.sweep}>
         <CartesianGrid vertical={false} stroke="#eef2f6" /><XAxis dataKey="threshold" fontSize={11} tickLine={false} /><YAxis domain={[0, 1]} fontSize={11} width={30} tickLine={false} axisLine={false} /><Tooltip /><Legend />
-        <Line isAnimationActive={false} dataKey="precision" name="Precision" stroke="#0e6e9c" strokeWidth={2.5} dot={false} />
+        <Line isAnimationActive={false} dataKey="precision" name="Precision" stroke="#0d56a5" strokeWidth={2.5} dot={false} />
         <Line isAnimationActive={false} dataKey="recall" name="Recall" stroke="#c77d0a" strokeWidth={2.5} dot={false} />
-        <ReferenceLine x={w.after.threshold} stroke="#0f2a44" strokeDasharray="4 3" label={{ value: 'chosen', fontSize: 11, position: 'top' }} />
+        <ReferenceLine x={w.after.threshold} stroke="#0a3d7a" strokeDasharray="4 3" label={{ value: 'chosen', fontSize: 11, position: 'top' }} />
       </ComposedChart></ResponsiveContainer></div>
       <p className="small" style={{ marginTop: 6 }}><b>Honest reading:</b> Higher precision means fewer false alarms but some shortfalls are caught later or missed.</p>
     </section>

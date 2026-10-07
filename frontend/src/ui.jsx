@@ -69,10 +69,10 @@ export function Projection({ pj, height = 230 }) {
             <YAxis fontSize={11} width={40} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
             <Tooltip formatter={(v) => (Array.isArray(v) ? `${taka(v[0])} to ${taka(v[1])}` : taka(v))} labelFormatter={(l) => (l === 'today' ? t('Today') : fmtDate(l))} />
             <ReferenceLine y={0} stroke="#d14343" strokeDasharray="4 3" />
-            <Area isAnimationActive={false} dataKey="band" name={t('Forecast range')} stroke="none" fill="#0e6e9c" fillOpacity={0.12} />
-            <Line isAnimationActive={false} dataKey="pos" name={t('Most likely')} stroke="#0e6e9c" dot={false} strokeWidth={2.5} connectNulls={false} />
+            <Area isAnimationActive={false} dataKey="band" name={t('Forecast range')} stroke="none" fill="#0d56a5" fillOpacity={0.12} />
+            <Line isAnimationActive={false} dataKey="pos" name={t('Most likely')} stroke="#0d56a5" dot={false} strokeWidth={2.5} connectNulls={false} />
             <Line isAnimationActive={false} dataKey="neg" name={t('Below zero')} stroke="#d14343" dot={false} strokeWidth={3} connectNulls={false} />
-            {pj.bills.map((b, i) => <ReferenceDot key={i} x={pj.dates[b.day - 1]} y={pj.p50[b.day - 1]} r={5} fill="#0f2a44" stroke="#fff" strokeWidth={1.5} />)}
+            {pj.bills.map((b, i) => <ReferenceDot key={i} x={pj.dates[b.day - 1]} y={pj.p50[b.day - 1]} r={5} fill="#0a3d7a" stroke="#fff" strokeWidth={1.5} />)}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -84,7 +84,7 @@ export function Projection({ pj, height = 230 }) {
   )
 }
 
-export const CAT = { food: ['Food & groceries', '#0e6e9c'], bills: ['Bills & EMI', '#6a4bd8'], education: ['Education', '#1e9e63'], transport: ['Transport', '#c27c00'], health: ['Health', '#d14343'], other: ['Other', '#9aa6b2'] }
+export const CAT = { food: ['Food & groceries', '#0d56a5'], bills: ['Bills & EMI', '#6a4bd8'], education: ['Education', '#1e9e63'], transport: ['Transport', '#c27c00'], health: ['Health', '#d14343'], other: ['Other', '#9aa6b2'] }
 export const FEATURE = {
   gap_mean_all: 'Usual gap between transfers', gap_mean3: 'Recent gap between transfers', last_gap: 'Last gap between transfers',
   gap_std_all: 'How much the gap varies', gap_cv: 'How much the gap varies', late_rate: 'Past transfers that were late',

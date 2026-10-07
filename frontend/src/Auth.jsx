@@ -38,7 +38,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
   return (
     <div className="authwrap">
       <aside className="authside">
-        <div className="brand" style={{ color: '#fff' }}><span className="logo" style={{ background: '#fff', color: 'var(--primary)' }}>R</span>RemitWise</div>
+        <div><div className="brand" style={{ color: '#fff', marginBottom: 2 }}><span className="logo">R</span>RemitWise</div><div className="forupay" style={{ paddingLeft: 44 }}><b>{t('for upay')}</b></div></div>
         <div style={{ marginBottom: 6 }}><LangToggle lang={lang} onChange={changeLang} dark /></div>
         <h1>{t('Make every remittance last until the next one.')}</h1>
         <p>{t('An AI planner for families who live on money sent from abroad: it forecasts the next transfer, keeps bills paid on time, warns early about shortfalls, and shares progress with the sender only if the family chooses.')}</p>

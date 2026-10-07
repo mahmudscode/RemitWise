@@ -90,7 +90,7 @@ export default function Insights({ hid, state, tick, lang, H }) {
                 <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
                 <YAxis hide domain={[0, 'dataMax + 300']} />
                 <RBar dataKey="amount" radius={[8, 8, 0, 0]} isAnimationActive={false}>
-                  {hist.points.map((p, i) => <Cell key={i} fill={p.estimate ? '#dcd3fb' : '#0e6e9c'} stroke={p.estimate ? '#6a4bd8' : 'none'} strokeDasharray={p.estimate ? '5 4' : undefined} />)}
+                  {hist.points.map((p, i) => <Cell key={i} fill={p.estimate ? '#dcd3fb' : '#0d56a5'} stroke={p.estimate ? '#6a4bd8' : 'none'} strokeDasharray={p.estimate ? '5 4' : undefined} />)}
                   <LabelList dataKey="amount" position="top" formatter={(v) => taka(v)} fontSize={11} />
                 </RBar>
               </BarChart>
