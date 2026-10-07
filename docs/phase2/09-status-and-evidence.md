@@ -17,7 +17,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 11 | Data retention | Done | `docs/data-retention.md`, `DELETE /api/me`, purge on start-up |
 | 12 | Systemic shock | Done | Sandbox button; stress table (coverage 83% to 26%) |
 | 13 | Load test | Done, two rounds | `docs/load-test-results.md`: 1 worker/SQLite, then **4 workers on PostgreSQL, 300 households, mixed writes, 4,000 concurrent webhook events applied exactly once**; fixed races found on the way |
-| 14 | Tests and security checks | Done | 122 tests, 73% coverage, `docs/security-check.md`, audits clean |
+| 14 | Tests and security checks | Done | 132 tests, 74% coverage, `docs/security-check.md`, audits clean |
 | 15 | Irregular senders | Built; no accuracy gain; **on by team decision** | Admin experiment card; `live_model` |
 | 16 | Sequence model | Built; neither variant won; temporal features **on by team decision**, neural net not used | Admin experiment card |
 | 17 | Monitoring | Done | Admin → Monitoring |

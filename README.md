@@ -28,6 +28,13 @@ An AI planner for families who live on remittance income. Built for **AI Hackath
 | Shortfall early warning | `backend/app/risk.py` | **Monte-Carlo** simulation of 1,000 futures (spending and arrival day) gives the probability and run-out date, with rule-trace reasons |
 | Smart split and goal allocation | `backend/app/allocator.py` | Deterministic business rules and a greedy goal optimiser, kept separate from the ML; three plan styles |
 | Bills, EMI and auto-pay | `backend/app/bills.py`, `live.py` | Bill vault, mandates with monthly limits, expected amount from the same month last year, **anomaly flag** above 1.8× the estimate (auto-pay paused until the family decides) |
+| Bangla and voice | `frontend/src/i18n.js`, `Voice.jsx` | English / বাংলা toggle on the main screens; read aloud and three fixed voice questions through the browser's speech APIs (no free-form AI decisions) |
+| Scenarios and stress | `live.py`, `evaluation.py` | Delayed transfer, Eid surge, medical emergency, unusual bill and a systemic shock in the sandbox; a stress test of the models on the shock |
+| Hybrid early warning | `evaluation.py`, `live.py` | Warns when the model is confident **or** a simple rule fires; threshold chosen on calibration households only |
+| Micro-savings | `live.py` | Consent-based, tiny daily amounts into the emergency fund, a goal or a **simulated** yield pot; pauses when bills are at risk |
+| Accounts and security codes | `auth.py`, `mailer.py` | Salted hashes, hashed tokens, rate limits; a 6-digit security code **emailed** (SMTP) to verify an address and reset a password; self-deletion and a data-retention policy |
+| Monitoring | `monitoring.py` | Rolling error and coverage, per-group flags and input drift in the admin console |
+| Real-event adapter | `main.py` | HMAC-signed transaction webhook with idempotency, safe under concurrent workers |
 | With vs without comparison | `backend/app/sim.py` | Policy replay: no plan, fixed 50/30/20 rule and RemitWise at 60/80/100% compliance |
 | Plain-language summaries | `backend/app/explain.py` | **Groq LLM** rewrites only numbers the code computed. Any number not in the facts discards the text and a template is used instead |
 | Sender view with consent | `backend/app/main.py` | Sender sees only the goal progress, savings total and bill status the family granted, enforced on the server |
@@ -132,7 +139,7 @@ Sign-in details for judges are in section 11.
 
 **Automated:**
 ```bash
-./run.sh test        # 130 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
+./run.sh test        # 132 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
 ```
 They cover allocator invariants (plans never overspend), summary safety (numbers validated, injection text sanitised), consent and household isolation, bills and the vault, sign-up, sign-in and persistence after a restart, admin endpoints, and a check that the forecaster beats a naive baseline. Tests use a temporary copy of the database, so demo data is untouched.
 
@@ -196,7 +203,7 @@ The admin opens the admin console automatically. The demo accounts exist only wh
 | Data-retention policy | [docs/data-retention.md](docs/data-retention.md); sessions, codes and audit rows expire; `DELETE /api/me` removes an account and its data | Goals → Your data; sign-in footer link |
 | Systemic shocks | Sandbox button "Systemic shock" (next 3 transfers 21 days later and 30% smaller) and a stress test on the test households | Admin → Simulation sandbox; Model performance → Stress test |
 | Concurrency, latency, resilience | Load-test script and results; clean 503/500 errors, app starts without the model file | [docs/load-test-results.md](docs/load-test-results.md); `backend/scripts/load_test.py` |
-| More tests and security checks | Route-introspecting tests for auth, role escalation, household isolation, injection and bad input; `pip-audit` and `npm audit` clean; coverage 73% | [docs/security-check.md](docs/security-check.md) |
+| More tests and security checks | Route-introspecting tests for auth, role escalation, household isolation, injection and bad input; `pip-audit` and `npm audit` clean; coverage 74% | [docs/security-check.md](docs/security-check.md) |
 | Improve irregular senders | Regularity features and group-wise calibration tried; **not adopted** (gain is within noise) | Admin → Model performance → Experiment |
 | Sequence models | LightGBM with lag features and a neural net over the last 6 gaps tried; **neither beat the baseline** | Admin → Model performance → Experiment |
 | Fairness and drift monitoring | Rolling error and coverage, per-group flags, input drift (PSI), live warning rate | Admin → Monitoring |
@@ -244,7 +251,7 @@ The forecaster was never trained on shocks, so its ranges lose most of their cov
 
 **Guided demo.** Admin → Simulation sandbox → *Reset household*, then steps 1 to 5: remittance arrives, accept allocation, unusual bill, warning, resolution.
 
-**PostgreSQL.** The whole pipeline and the full test suite were run against **PostgreSQL 18.6** (a user-space install, no Docker, on a fresh database): the pipeline produced identical numbers and **all 130 tests passed** (re-run after the final changes, including the new concurrency tests). That run found two tests that were SQLite-specific (raw `sqlite3` access) and one that assumed an empty database; they were fixed. Reproduce with `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data, runs the suite) or point `DATABASE_URL` at any empty PostgreSQL database and run `python -m app.pipeline` then `pytest`. The suite expects a fresh database each run. Not tested: PostgreSQL at production scale, other versions.
+**PostgreSQL.** The whole pipeline and the full test suite were run against **PostgreSQL 18.6** (a user-space install, no Docker, on a fresh database): the pipeline produced identical numbers and **all 132 tests passed** (re-run after the final changes, including the concurrency and email-code tests). That run found two tests that were SQLite-specific (raw `sqlite3` access) and one that assumed an empty database; they were fixed. Reproduce with `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data, runs the suite) or point `DATABASE_URL` at any empty PostgreSQL database and run `python -m app.pipeline` then `pytest`. The suite expects a fresh database each run. Not tested: PostgreSQL at production scale, other versions.
 
 **Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on real anonymised upay data, real upay payment and identity integration (the webhook adapter is the bridge), production PostgreSQL at scale (a hosted deployment and testing across machines) and formal penetration testing, a real, licensed yield or investment product (the yield pot is a simulation). These are our next phase, a controlled pilot with governed upay data.
 

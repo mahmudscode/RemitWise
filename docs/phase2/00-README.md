@@ -21,7 +21,7 @@ Team: Matrix Miners — MD Mahmudur Rahman Supto, Sk Abu Sayeed, Shoukhinuzzaman
 ## Ground rules (apply to every task)
 1. Organizers' on-site requirements override everything in these docs.
 2. One commit per task, with the exact message given. Judges grade Git history (Rulebook 5.2, 5.3, 8.3). No squash, rebase or force-push.
-3. The existing backend tests must keep passing (122 at the end); new backend behaviour gets tests.
+3. The existing backend tests must keep passing (132 at the end); new backend behaviour gets tests.
 4. Do not break the demo: rebuild once after backend changes, then confirm API and web start.
 5. All data synthetic. No real customer data, money movement or investment products.
 6. Keep the existing design language, explanations and "AI estimate" labels.

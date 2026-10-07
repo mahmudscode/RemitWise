@@ -2,7 +2,7 @@
 
 What was run and what it found. This is a hackathon prototype: these are automated self-checks, not an independent security audit or penetration test.
 
-## Automated tests (`./run.sh test`, 103 tests)
+## Automated tests (`./run.sh test`, 132 tests)
 | Check | How |
 |---|---|
 | No endpoint answers without a valid token | Every non-public route is called with no token and with a garbage token; the answer must be 401 (or 422 for an empty body), never 2xx |
@@ -28,7 +28,7 @@ The route checks introspect the real FastAPI routes, so a new endpoint without t
 Run on the date of the last commit; vulnerability databases change, so re-run before any real deployment.
 
 ## Test coverage (`pytest --cov=app`)
-Overall **73%** of statements. The API and engine are higher: `auth.py` 94%, `risk.py` 95%, `allocator.py` 98%, `live.py` 89%, `main.py` 85%. The offline modules that generate data, train and evaluate (`simulator.py`, `sim.py`, `forecast.py`, `evaluation.py`, `pipeline.py`) are exercised by running `./run.sh build`, not by unit tests, which pulls the total down.
+Overall **74%** of statements. The API and engine are higher: `auth.py` 94%, `risk.py` 95%, `allocator.py` 98%, `live.py` 89%, `main.py` 85%. The offline modules that generate data, train and evaluate (`simulator.py`, `sim.py`, `forecast.py`, `evaluation.py`, `pipeline.py`) are exercised by running `./run.sh build`, not by unit tests, which pulls the total down.
 
 ```bash
 pip install pytest-cov pip-audit
