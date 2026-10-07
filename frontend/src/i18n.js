@@ -116,6 +116,20 @@ const BN = {
   'Read the data-retention policy': 'তথ্য সংরক্ষণ নীতি পড়ুন', 'Delete my account': 'আমার অ্যাকাউন্ট মুছুন', 'This permanently removes your account and data. Type DELETE to confirm.': 'এতে আপনার অ্যাকাউন্ট ও তথ্য স্থায়ীভাবে মুছে যাবে। নিশ্চিত করতে DELETE লিখুন।', 'Data-retention policy': 'তথ্য সংরক্ষণ নীতি',
   // adaptive correction
   'Adjusted for your household:': 'আপনার পরিবারের জন্য সমন্বয়:', days: 'দিন', 'your transfers have been later than predicted recently': 'সাম্প্রতিক ট্রান্সফার অনুমানের চেয়ে দেরিতে এসেছে', 'your transfers have been earlier than predicted recently': 'সাম্প্রতিক ট্রান্সফার অনুমানের চেয়ে আগে এসেছে',
+  // voice
+  'Read aloud': 'পড়ে শোনান', 'Ask by voice': 'কথা বলে জিজ্ঞাসা করুন', Ask: 'জিজ্ঞাসা', 'Listening…': 'শুনছি…', Questions: 'প্রশ্ন', 'Ask a question': 'একটি প্রশ্ন করুন',
+  'How much can I spend?': 'কত টাকা খরচ করতে পারি?', 'When is the next transfer?': 'পরের টাকা কবে আসবে?', 'Which bills are due?': 'কোন বিল বাকি?', 'You asked:': 'আপনি জিজ্ঞাসা করেছেন:',
+  'This browser cannot read aloud. You can read the text on screen.': 'এই ব্রাউজার পড়ে শোনাতে পারে না। পর্দার লেখা পড়ে নিন।',
+  'No Bangla voice was found on this device. Install one in the system speech settings, or read the text on screen.': 'এই ডিভাইসে কোনো বাংলা ভয়েস পাওয়া যায়নি। সিস্টেমের স্পিচ সেটিংসে একটি যোগ করুন, অথবা পর্দার লেখা পড়ে নিন।',
+  'Microphone access was blocked. Allow it in the browser settings, or tap a question below.': 'মাইক্রোফোনের অনুমতি বন্ধ আছে। ব্রাউজার সেটিংসে অনুমতি দিন, অথবা নিচের একটি প্রশ্নে চাপ দিন।',
+  'I could not hear that. Try again, or tap a question below.': 'শুনতে পাইনি। আবার চেষ্টা করুন, অথবা নিচের একটি প্রশ্নে চাপ দিন।',
+  'Voice input is not available in this browser, so tap a question instead.': 'এই ব্রাউজারে কণ্ঠস্বরে প্রশ্ন করা যায় না, তাই একটি প্রশ্নে চাপ দিন।',
+  'Answers come from the numbers on your screen. They are estimates, and you decide.': 'উত্তরগুলো আপনার পর্দার সংখ্যা থেকে আসে। এগুলো অনুমান, সিদ্ধান্ত আপনার।',
+  'I cannot say yet: there is not enough history for a forecast.': 'এখনও বলতে পারছি না: পূর্বাভাসের জন্য যথেষ্ট তথ্য নেই।',
+  'You can safely spend about {amt} a day until your next transfer, in about {n} days.': 'পরবর্তী ট্রান্সফার (প্রায় {n} দিন) পর্যন্ত আপনি নিরাপদে দিনে প্রায় {amt} খরচ করতে পারেন।',
+  'Your next transfer is expected in {a} to {b} days, about {m} to {n} taka. This is an estimate.': 'আপনার পরবর্তী ট্রান্সফার {a} থেকে {b} দিনের মধ্যে আসার কথা, প্রায় {m} থেকে {n} টাকা। এটি একটি অনুমান।',
+  'No bills are due soon.': 'শিগগিরই কোনো বিল পরিশোধের নেই।', '{name} {amt} due {d}': '{name} {amt}, মেয়াদ {d}', 'Bills coming up: {list}.': 'আসন্ন বিল: {list}।',
+  'Sorry, I can only answer three questions: how much can I spend, when is the next transfer, and which bills are due.': 'দুঃখিত, আমি শুধু তিনটি প্রশ্নের উত্তর দিতে পারি: কত টাকা খরচ করতে পারি, পরের টাকা কবে আসবে, এবং কোন বিল বাকি।',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

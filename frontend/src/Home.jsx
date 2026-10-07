@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, fmtDate, longDate, taka } from './api'
 import { AI, Avatar, Bar, Chip, ft, Modal, Projection, Skel } from './ui'
 import { t, tb } from './i18n'
+import { SpeakButton, VoiceAsk, digest } from './Voice.jsx'
 
 export const subLine = (b) => {
   if (b.display_status === 'paid') return t('Paid {d}', { d: b.paid_date ? fmtDate(b.paid_date) : '' })
@@ -18,6 +19,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
   const [pj, setPj] = useState(undefined)
   const [sum, setSum] = useState(undefined)
   const [facts, setFacts] = useState(false)
+  const [voiceNote, setVoiceNote] = useState('')
 
   useEffect(() => {
     api(`/households/${hid}/home`, H).then(setHome).catch(() => setHome(null))
@@ -40,9 +42,10 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
           <h1>{t('Good morning, {name}', { name: person?.name })}</h1>
           <p className="only-desktop">{longDate(state.date)} · {t('Family wallet')}</p>
         </div>
-        <div className="row"><button className="btn primary only-desktop" onClick={() => go('payments', { add: true })}>{t('+ Add payment')}</button><Avatar text={person?.name} /></div>
+        <div className="row voicerow"><SpeakButton lang={lang} text={() => digest({ home, fc }, { t, taka, fmtDate, tb })} onNote={setVoiceNote} /><VoiceAsk lang={lang} home={home} fc={fc} /><button className="btn primary only-desktop" onClick={() => go('payments', { add: true })}>{t('+ Add payment')}</button><Avatar text={person?.name} /></div>
       </div>
 
+      {voiceNote && <p className="small txt-amber" role="status">{voiceNote}</p>}
       <div className="grid3">
         <section className="card blue">
           <p className="bal-label">{t('Available balance')}</p>
@@ -74,7 +77,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
       {home?.alert && (
         <div className={`banner ${home.alert.severity === 'red' ? 'red' : ''}`}>
           <span>{t(home.alert.days_short === 1 ? 'Heads up: you may run short about {n} day before your next transfer.' : 'Heads up: you may run short about {n} days before your next transfer.', { n: home.alert.days_short })}</span>
-          <button className="link" onClick={() => go('plan')}>{t('See options →')}</button>
+          <span className="row"><SpeakButton small lang={lang} text={() => t('Heads up: you may run short about {n} days before your next transfer.', { n: home.alert.days_short })} onNote={setVoiceNote} /><button className="link" onClick={() => go('plan')}>{t('See options →')}</button></span>
         </div>
       )}
 
@@ -99,7 +102,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
 
       <div className="grid2" style={{ gridTemplateColumns: '1.35fr 1fr' }}>
         <section className="card purple">
-          <span className="ai" style={{ background: 'transparent', padding: 0 }}>{t('AI summary')}</span>
+          <span className="row between"><span className="ai" style={{ background: 'transparent', padding: 0 }}>{t('AI summary')}</span>{sum?.text && <SpeakButton small lang={lang} text={sum.text} onNote={setVoiceNote} />}</span>
           {sum === undefined ? <Skel lines={3} /> : sum ? (<>
             <p style={{ margin: '8px 0', fontSize: 15 }}>{sum.text}</p>
             <span className="tag">{tb(sum.label)} · {sum.source}</span> <button className="link" onClick={() => setFacts(!facts)}>{facts ? t('Hide the facts used') : t('Show the facts used')}</button>
