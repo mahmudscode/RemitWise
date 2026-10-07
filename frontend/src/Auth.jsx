@@ -50,6 +50,14 @@ export default function Auth({ onAuthed, lang, changeLang }) {
           <li>{t('Senders see goal progress only, never spending, unless the family shares more.')}</li>
           <li>{t('Synthetic data only. No real money moves.')}</li>
         </ul>
+        <table className="vs" aria-label={t('Budgeting app vs RemitWise')}>
+          <thead><tr><th /><th>{t('Budgeting app')}</th><th>RemitWise</th></tr></thead>
+          <tbody>
+            <tr><td>{t('Income')}</td><td>{t('Fixed salary')}</td><td>{t('Irregular remittances')}</td></tr>
+            <tr><td>{t('Looks at')}</td><td>{t('Past spending')}</td><td>{t('Future arrival of money')}</td></tr>
+            <tr><td>{t('Answer')}</td><td>{t('One number')}</td><td>{t('A calibrated range')}</td></tr>
+          </tbody>
+        </table>
       </aside>
       <main className="authmain">
         {stage === 'verify' && fresh && <VerifyPhone token={fresh.token} user={fresh.user} onDone={(u) => onAuthed(u || fresh.user)} />}

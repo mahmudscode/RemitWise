@@ -107,6 +107,10 @@ const BN = {
   'Tick the box to agree first.': 'আগে সম্মতির বাক্সে টিক দিন।', 'How much': 'কত টাকা', 'Save into': 'কোথায় জমবে', 'Round spending up to the next ৳10': 'খরচ পরবর্তী ৳১০-এ পূর্ণ করে নেওয়া',
   '1% of safe-to-spend surplus': 'নিরাপদে খরচযোগ্য উদ্বৃত্তের ১%', 'Micro-saved this month: {amt}': 'এই মাসে মাইক্রো-সঞ্চয়: {amt}', 'Paused to protect your bills': 'আপনার বিল রক্ষার জন্য বিরতিতে', Saving: 'জমছে',
   'A few taka a day at most. Daily cash for the next two days is never touched. This is saving, not investing: no yield, no products, no advice.': 'দিনে সর্বোচ্চ কয়েক টাকা। পরের দুই দিনের নগদ কখনও ছোঁয়া হয় না। এটি সঞ্চয়, বিনিয়োগ নয়: কোনো মুনাফা, পণ্য বা আর্থিক পরামর্শ নেই।',
+  // not a budgeting app
+  'Budget apps track what you spent. RemitWise predicts when money will arrive and plans around that uncertainty.': 'বাজেট অ্যাপ দেখায় আপনি কী খরচ করেছেন। রিমিটওয়াইজ আগেই অনুমান করে টাকা কখন আসবে এবং সেই অনিশ্চয়তা মাথায় রেখে পরিকল্পনা করে।',
+  'Budgeting app vs RemitWise': 'বাজেটিং অ্যাপ বনাম রিমিটওয়াইজ', 'Budgeting app': 'বাজেটিং অ্যাপ', Income: 'আয়', 'Fixed salary': 'নির্দিষ্ট বেতন', 'Irregular remittances': 'অনিয়মিত রেমিট্যান্স',
+  'Looks at': 'যা দেখে', 'Past spending': 'অতীতের খরচ', 'Future arrival of money': 'ভবিষ্যতে টাকা আসার সময়', Answer: 'উত্তর', 'One number': 'একটি সংখ্যা', 'A calibrated range': 'যাচাই করা একটি পরিসর',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

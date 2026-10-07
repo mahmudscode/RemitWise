@@ -206,3 +206,10 @@ html[lang="bn"] body { font-family: 'Noto Sans Bengali', Inter, system-ui, -appl
 .demoCode { background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
 .demoCode b { font-size: 22px; letter-spacing: 3px; color: var(--primary); margin-left: 6px; }
 .demoCode small { display: block; color: var(--muted); }
+
+.explainer { margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.vs { border-collapse: separate; border-spacing: 0; width: 100%; max-width: 520px; margin-top: 6px; font-size: 14px; background: rgba(255,255,255,.08); border-radius: 14px; overflow: hidden; }
+.vs th, .vs td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.15); color: #fff; font-weight: 400; }
+.vs thead th { font-weight: 700; font-size: 13px; opacity: .9; } .vs thead th:last-child { color: var(--brand-accent); }
+.vs td:first-child { opacity: .75; } .vs td:last-child { font-weight: 700; } .vs tbody tr:last-child td { border-bottom: 0; }
+@media (max-width: 960px) { .authside ul { display: none; } .vs { font-size: 13px; } }

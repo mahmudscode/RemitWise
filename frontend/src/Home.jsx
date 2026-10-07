@@ -58,6 +58,7 @@ export default function Home({ hid, state, tick, lang, H, go, person }) {
             <Bar pct={confPct} />
             <div className="row between small muted"><span>{t('Confidence: {c}', { c: t(conf) })}{f.overdue ? t(' · overdue, range widened') : ''}</span><WhyLink fc={fc} /></div>
           </>) : <p className="muted" style={{ marginTop: 8 }}>{t('Collecting more history…')}</p>}
+          <p className="explainer">{t('Budget apps track what you spent. RemitWise predicts when money will arrive and plans around that uncertainty.')}</p>
         </section>
 
         <section className="card">
