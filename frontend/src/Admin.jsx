@@ -15,6 +15,7 @@ const EV = {
   eid_surge: (e) => [`Scenario: Eid expense surge until ${fmtDate(e.until)}`, 'var(--amber)'], medical_emergency: (e) => [`Scenario: medical emergency ${taka(e.amount)}`, 'var(--red)'],
   micro_paused: () => ['Micro-savings paused to protect bills', 'var(--amber)'], micro_resumed: () => ['Micro-savings resumed', 'var(--green)'],
   micro_on: () => ['Micro-savings switched on by the family', 'var(--primary)'], micro_off: () => ['Micro-savings switched off', 'var(--muted)'],
+  systemic_shock: () => ['Scenario: systemic shock, next transfers delayed and smaller', 'var(--red)'],
   goal_used: (e) => [`Goal money used: ${taka(e.amount)}`, 'var(--amber)'],
 }
 const CHECKS = ['Synthetic data only', 'Feature explanations on every forecast', 'Auto-pay only under family mandates', 'Human confirmation above limits', 'LLM explains, never decides', 'Prompt-injection guard', 'Consent-based sharing with sender', 'Admins see aggregates, never a family\'s finances']
@@ -176,6 +177,7 @@ function Model({ ev, comp, per, person }) {
         {mine('baseline') && mine('remitwise') && <p className="small" style={{ marginTop: 6 }}>For <b>{person?.name}</b> alone ({pct(comp)}): {f1(mine('baseline').shortfall_days_per_year)} shortfall days a year without → <b>{f1(mine('remitwise').shortfall_days_per_year)}</b> with RemitWise; bills on time {pct(mine('baseline').on_time_rate)} → <b>{pct(mine('remitwise').on_time_rate)}</b>.</p>}
       </section>
       <WarningTuning w={w} />
+      {ev.stress && <StressTest st={ev.stress} />}
       <section className="card">
         <h2 style={{ marginBottom: 10 }}>Responsible AI checks</h2>
         <div className="chiprow">{CHECKS.map((c) => <span className="okchip" key={c}>✓ {c}</span>)}</div>
@@ -225,6 +227,27 @@ function Guided({ guided }) {
   )
 }
 
+function StressTest({ st }) {
+  const f = st.forecast, w = st.warning
+  const row = (label, a, b, fmt = (x) => x.toFixed(2)) => <tr key={label}><td>{label}</td><td>{fmt(a)}</td><td><b>{fmt(b)}</b></td></tr>
+  return (
+    <section className="card">
+      <div className="row between wrap"><h2>Stress test: systemic shock</h2><span className="ai">Test set</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>{st.description} Same shock as the sandbox button “Systemic shock”.</p>
+      <table><thead><tr><th>Measure</th><th>Normal</th><th>Under shock</th></tr></thead><tbody>
+        {row('Timing error (MAE, days)', f.normal.gap_mae, f.shock.gap_mae, (x) => x.toFixed(1))}
+        {row('Timing range coverage (target 80%)', f.normal.gap_coverage, f.shock.gap_coverage, pct)}
+        {row('Amount range coverage', f.normal.amt_coverage, f.shock.amt_coverage, pct)}
+        {row('Warning precision', w.normal.precision, w.shock.precision)}
+        {row('Warning recall', w.normal.recall, w.shock.recall)}
+        {row('Average warning lead (days)', w.normal.mean_lead_days, w.shock.mean_lead_days, (x) => x.toFixed(1))}
+        {row('Share of cycles that end in a shortfall', w.normal.base_rate, w.shock.base_rate, pct)}
+      </tbody></table>
+      <p className="small" style={{ marginTop: 8 }}><b>Honest reading:</b> {st.note} Forecast ranges lose most of their coverage because the model has never seen a shock. Warnings still fire, but give less notice. A real deployment would add a corridor-level alert and retrain on shock periods.</p>
+    </section>
+  )
+}
+
 function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMore, go, guided }) {
   const events = [...state.log].reverse().filter((e) => EV[e.type]).slice(0, 10)
   return (
@@ -243,6 +266,7 @@ function Sim({ hid, hh, setHid, state, person, adv, scen, run, msg, more, setMor
             <p className="small" style={{ margin: '6px 0 0', fontWeight: 700 }}>Real-life scenarios</p>
             <button className="btn block" onClick={() => scen('delay', 14, 'Next transfer delayed by 14 days.')}>Delay next transfer</button>
             <button className="btn block" onClick={() => scen('eid_surge', 0, 'Eid expense surge: daily needs about 40% higher for 10 days.')}>Eid expense surge</button>
+            <button className="btn block" onClick={() => scen('systemic_shock', 0, 'Systemic shock: the next 3 transfers arrive 21 days later each and 30% smaller.')}>Systemic shock (corridor disruption)</button>
             <button className="btn block" onClick={() => scen('medical', 8000, 'Medical emergency: ৳8,000 unexpected expense.')}>Medical emergency</button>
             <button className="btn block" onClick={() => scen('high_bill', 0, 'The next electricity bill will be unusually high.')}>Inject unusually high bill (electricity)</button>
             <p className="small" style={{ margin: '6px 0 0', fontWeight: 700 }}>Other</p>

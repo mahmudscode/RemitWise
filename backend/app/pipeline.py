@@ -56,6 +56,8 @@ def run():
     print(f"   warning threshold before {b['threshold']}: precision {b['precision']} recall {b['recall']} f1 {b['f1']} lead {b['mean_lead_days']}d")
     print(f"   warning threshold after  {a['threshold']}: precision {a['precision']} recall {a['recall']} f1 {a['f1']} lead {a['mean_lead_days']}d")
     print(f"   simple rule: precision {wm['threshold_only_rule']['precision']} recall {wm['threshold_only_rule']['recall']}")
+    st_ = evaluation.stress_test(h, r, l, te, P_te, P_all, bmaps, wm["threshold"])
+    print(f"   stress: warning recall normal {st_['warning']['normal']['recall']} vs shock {st_['warning']['shock']['recall']}; gap coverage {st_['forecast']['normal']['gap_coverage']} vs {st_['forecast']['shock']['gap_coverage']}")
     bm = evaluation.bill_metrics(h, bsched, bdefs)
     fs = evaluation.forecast_samples(te, P_te)
 
@@ -63,7 +65,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,

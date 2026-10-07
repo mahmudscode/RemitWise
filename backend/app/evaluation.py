@@ -79,7 +79,7 @@ def compare_policies(h, r, l, te, P, bmaps) -> dict:
                 horizon_days=365, metrics=metrics)
 
 
-def _checkpoints(h, r, l, ids, P_all, bmaps, n_mc=400):
+def _checkpoints(h, r, l, ids, P_all, bmaps, n_mc=400, only_seqs=None):
     """Build warning checkpoints (features + truth) for given households."""
     led_by = {k: v.reset_index(drop=True) for k, v in l.groupby("household_id")}
     ev_by = {k: v for k, v in r.groupby("household_id")}
@@ -99,7 +99,7 @@ def _checkpoints(h, r, l, ids, P_all, bmaps, n_mc=400):
                 continue
             day0 = int(grp["day"].iloc[0] - grp["since"].iloc[0]) if False else int(grp["day"].iloc[0])
             seq = seq_of_day.get(day0)
-            if seq is None or seq not in fc:
+            if seq is None or seq not in fc or (only_seqs is not None and seq not in only_seqs):
                 continue
             f = fc[seq]
             grp = grp.reset_index(drop=True)
@@ -168,6 +168,52 @@ def warning_metrics(h, r, l, ds_all, P_all_df, bmaps) -> dict:
     return dict(threshold=t_after, before=before, after=after, sweep=sweep,
                 model=after, threshold_only_rule=_prf(test, test.naive_warn),
                 note="Thresholds chosen on calibration households; all numbers reported on clean test households.")
+
+
+SHOCK_START_SEQ = 6      # the corridor disruption starts at this transfer
+SHOCK_DELAY_DAYS = 21    # each of the next three transfers arrives 21 days later than it otherwise would
+SHOCK_AMOUNT_CUT = 0.30
+SHOCK_LEN = 3
+
+
+def shocked_events(r: pd.DataFrame) -> pd.DataFrame:
+    """Same disruption the sandbox button applies: three transfers arrive later (cumulatively) and 30% smaller;
+    every later transfer keeps its normal gap but is shifted by the accumulated delay."""
+    r = r.copy()
+    rank = (r["seq"] - SHOCK_START_SEQ + 1).clip(lower=0)
+    r["day"] = r["day"] + SHOCK_DELAY_DAYS * rank.clip(upper=SHOCK_LEN)
+    hit = (rank >= 1) & (rank <= SHOCK_LEN)
+    r.loc[hit, "amount"] = r.loc[hit, "amount"] * (1 - SHOCK_AMOUNT_CUT)
+    return r
+
+
+def stress_test(h, r, l, te, P_te, P_all_df, bmaps, threshold: float) -> dict:
+    """Robustness to a systemic shock (remittance-corridor disruption). The model was never trained on shocks."""
+    seqs = list(range(SHOCK_START_SEQ, SHOCK_START_SEQ + SHOCK_LEN))
+    win = te[te.seq.isin(seqs)]
+    P = P_te.loc[win.index]
+    def cov(gap_add, amt_mult):
+        g = win.target_gap + gap_add
+        a = win.target_amt * amt_mult
+        return dict(n=int(len(win)),
+                    gap_mae=round(float(np.abs(P.gap_p50 - g).mean()), 2),
+                    gap_coverage=round(float(((g >= P.gap_p10) & (g <= P.gap_p90)).mean()), 3),
+                    amt_coverage=round(float(((a >= P.amt_p10) & (a <= P.amt_p90)).mean()), 3))
+    P_all = {}
+    for hid, g in P_all_df.groupby("household_id"):
+        P_all[hid] = {int(rw["seq"]): rw for rw in g.to_dict("records")}
+    test_ids = h[h.split == "test"].household_id.tolist()
+    window = {k - 1 for k in seqs}  # cycles that start at the arrival before each affected transfer
+    r_test = r[r.household_id.isin(test_ids)]
+    out = {}
+    for name, ev in (("normal", r_test), ("shock", shocked_events(r_test))):
+        ck = _checkpoints(h, ev, l, test_ids, P_all, bmaps, only_seqs=window)
+        out[name] = _prf(ck, ck.prob >= threshold)
+    return dict(
+        description=f"Three consecutive transfers (from transfer {SHOCK_START_SEQ}) arrive {SHOCK_DELAY_DAYS} days later each and {int(SHOCK_AMOUNT_CUT * 100)}% smaller.",
+        threshold=threshold, forecast=dict(normal=cov(0, 1.0), shock=cov(SHOCK_DELAY_DAYS, 1 - SHOCK_AMOUNT_CUT)),
+        warning=out,
+        note="The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance.")
 
 
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:

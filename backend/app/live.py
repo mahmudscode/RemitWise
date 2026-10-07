@@ -141,7 +141,7 @@ class Engine:
         return dict(day=start_day - 1, spendable=float(ess[start_day:start_day + 10].sum()), buffer=0.0, vault=0.0,
                     goals={}, debt=0.0, shortfall_days=0, last_arrival_day=int(ev.loc[ev.seq == k - 1, "day"].iloc[0]),
                     last_seq=k - 1, pending=None, adherent=False, overrides={}, extra_income=0.0,
-                    need_mult=1.0, eid_until=-1, micro_on=False, micro_mode="roundup", micro_target="emergency",
+                    need_mult=1.0, eid_until=-1, amt_mult={}, micro_on=False, micro_mode="roundup", micro_target="emergency",
                     micro_total=0.0, micro_log=[], micro_paused=None, micro_consent_day=None, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
                     cycle_forecast=None, bill_cfg=cfg, mandates=[], bills={}, bill_override={}, paid_log=[],
                     bills_due=0, bills_on_time=0, late_fees=0.0, fees_avoided=0.0, overbilling_avoided=0.0,
@@ -757,6 +757,7 @@ class Engine:
             steps += 1
             if d in arrivals and arrivals[d][0] >= self.start_seq(hid):
                 seq, amount = arrivals[d]
+                amount = amount * st["amt_mult"].get(str(seq), 1.0)  # systemic-shock scenario cuts some transfers
                 a = sim.Account(spendable=st["spendable"], buffer=st["buffer"], goals=sum(st["goals"].values()),
                                 debt=st["debt"])
                 got = a.receive(amount)
@@ -817,6 +818,19 @@ class Engine:
             st["spendable"], st["buffer"], st["debt"] = a.spendable, a.buffer, a.debt
             st["log"].append(dict(day=st["day"], type="medical_emergency" if kind == "medical" else "large_expense",
                                   amount=round(value)))
+        elif kind == "systemic_shock":
+            # remittance-corridor disruption: the next 3 transfers arrive 21 days later each and 30% smaller
+            if st.get("shock_seq") == st["last_seq"]:
+                raise ValueError("a systemic shock is already active for the next transfers")
+            ev = self.ev[hid]
+            for r in ev[ev.seq > st["last_seq"]].itertuples():
+                rank = int(r.seq - st["last_seq"])
+                cur = st["overrides"].get(str(r.seq), int(r.day))
+                st["overrides"][str(r.seq)] = int(cur + 21 * min(rank, 3))
+                if rank <= 3:
+                    st["amt_mult"][str(r.seq)] = 0.7
+            st["shock_seq"] = st["last_seq"]
+            st["log"].append(dict(day=st["day"], type="systemic_shock"))
         elif kind == "eid_surge":
             st["eid_until"] = int(st["day"] + EID_DAYS)
             st["log"].append(dict(day=st["day"], type="eid_surge", until=_d(st["eid_until"])))

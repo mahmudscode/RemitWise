@@ -955,3 +955,32 @@ def test_retention_purges_expired_sessions_codes_and_old_audit(client):
     with db.SessionLocal() as s:
         actions = {a for (a,) in s.query(db.Audit.action).all()}
     assert "old" not in actions and "recent" in actions
+
+
+# ---------- systemic shock ----------
+def test_systemic_shock_delays_and_shrinks_the_next_transfers(client):
+    hid = _hid(client)
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    from app import main
+    e = main.ENGINE
+    st0 = e.get(hid)
+    nxt = e.ev[hid]
+    first = int(nxt[nxt.seq == st0["last_seq"] + 1].day.iloc[0])
+    r = client.post(f"/api/households/{hid}/scenario", json=dict(kind="systemic_shock"), headers=H("admin", ""))
+    assert r.status_code == 200 and any(x["type"] == "systemic_shock" for x in r.json()["log"])
+    st = e.get(hid)
+    assert st["overrides"][str(st0["last_seq"] + 1)] == first + 21
+    assert st["overrides"][str(st0["last_seq"] + 3)] - int(nxt[nxt.seq == st0["last_seq"] + 3].day.iloc[0]) == 63
+    assert set(st["amt_mult"].values()) == {0.7} and len(st["amt_mult"]) == 3
+    again = client.post(f"/api/households/{hid}/scenario", json=dict(kind="systemic_shock"), headers=H("admin", ""))
+    assert again.status_code == 400
+    arr = client.post(f"/api/households/{hid}/advance", json=dict(days=1, to_arrival=True), headers=H("family", hid)).json()
+    assert arr["pending"]["amount"] <= 0.71 * float(nxt[nxt.seq == st["last_seq"] + 1].amount.iloc[0]) or arr["pending"]["seq"] > st0["last_seq"] + 3
+
+
+def test_stress_results_are_saved_and_honest():
+    s = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["stress"]
+    assert {"forecast", "warning", "description", "note"} <= set(s)
+    assert s["forecast"]["shock"]["gap_mae"] > s["forecast"]["normal"]["gap_mae"]  # a shock really is harder
+    assert s["forecast"]["shock"]["gap_coverage"] < s["forecast"]["normal"]["gap_coverage"]
+    assert 0 <= s["warning"]["shock"]["recall"] <= 1

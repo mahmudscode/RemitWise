@@ -908,6 +908,43 @@
     },
     "note": "Thresholds chosen on calibration households; all numbers reported on clean test households."
   },
+  "stress": {
+    "description": "Three consecutive transfers (from transfer 6) arrive 21 days later each and 30% smaller.",
+    "threshold": 0.7,
+    "forecast": {
+      "normal": {
+        "n": 300,
+        "gap_mae": 7.89,
+        "gap_coverage": 0.827,
+        "amt_coverage": 0.753
+      },
+      "shock": {
+        "n": 300,
+        "gap_mae": 20.89,
+        "gap_coverage": 0.257,
+        "amt_coverage": 0.553
+      }
+    },
+    "warning": {
+      "normal": {
+        "precision": 0.9014,
+        "recall": 0.5172,
+        "f1": 0.6573,
+        "mean_lead_days": 4.04,
+        "n": 1444,
+        "base_rate": 0.3428
+      },
+      "shock": {
+        "precision": 0.9972,
+        "recall": 0.7371,
+        "f1": 0.8476,
+        "mean_lead_days": 1.94,
+        "n": 2696,
+        "base_rate": 0.8832
+      }
+    },
+    "note": "The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance."
+  },
   "bills": {
     "n_estimates": 1622,
     "estimate_mape_model": 0.1109104893440539,
@@ -1382,5 +1419,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-07T09:12:44"
+  "generated_at": "2026-10-07T09:59:01"
 }
