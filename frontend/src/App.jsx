@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, BASE, fmtDate, getToken, setToken } from './api'
-import { Avatar, Icon } from './ui'
+import { Avatar, Icon, LangToggle } from './ui'
+import { getLang, setLang as setLangModule, t } from './i18n'
 import Auth from './Auth.jsx'
 import Home from './Home.jsx'
 import Payments from './Payments.jsx'
@@ -21,7 +22,8 @@ const hashPage = () => location.hash.replace(/^#\/?/, '').split('/')[0]
 export default function App() {
   const [auth, setAuth] = useState({ status: getToken() ? 'loading' : 'out', user: null })
   const [page, setPage] = useState('home')
-  const lang = 'en'
+  const [lang, setLangState] = useState(getLang())
+  const changeLang = (l) => { setLangModule(l); setLangState(l) }
   const [hh, setHh] = useState([])
   const [hid, setHid] = useState('')
   const [state, setState] = useState(null)
@@ -79,46 +81,47 @@ export default function App() {
   const advance = (days, to_arrival = false) => act(() => api(`/households/${hid}/advance`, { method: 'POST', body: { days, to_arrival } })).catch(() => {})
   const person = hh.find((h) => h.household_id === hid)
   const H = {}
-  const ctx = { hid, state, tick, lang, H, act, person, go, hh, setHid, me, logout, role }
+  const ctx = { hid, state, tick, lang, changeLang, H, act, person, go, hh, setHid, me, logout, role }
   const Page = PAGES[page]
   const showModal = state?.pending && dismissed !== state.pending.seq && page !== 'sender' && page !== 'admin'
 
-  if (auth.status === 'loading') return <p className="muted" style={{ padding: 24 }}>Loading…</p>
-  if (auth.status === 'error') return <div style={{ padding: 24, maxWidth: 560 }}><div className="error">{auth.msg}</div><p className="muted small" style={{ margin: '10px 0' }}>You are still signed in. Your data is safe on the server.</p><button className="btn primary" onClick={() => { setAuth({ status: 'loading', user: null }); setRetry((x) => x + 1) }}>Try again</button></div>
-  if (auth.status === 'out') return <Auth onAuthed={onAuthed} />
+  if (auth.status === 'loading') return <p className="muted" style={{ padding: 24 }}>{t('Loading…')}</p>
+  if (auth.status === 'error') return <div style={{ padding: 24, maxWidth: 560 }}><div className="error">{auth.msg}</div><p className="muted small" style={{ margin: '10px 0' }}>{t('You are still signed in. Your data is safe on the server.')}</p><button className="btn primary" onClick={() => { setAuth({ status: 'loading', user: null }); setRetry((x) => x + 1) }}>{t('Try again')}</button></div>
+  if (auth.status === 'out') return <Auth onAuthed={onAuthed} lang={lang} changeLang={changeLang} />
 
   // The demo clock lives in the layout (sidebar on desktop, top of the page on phones) so it never floats over content.
   const clock = state && page !== 'admin' && role !== 'sender' && (
     <div className="clockbox">
-      <button className="x row between" style={{ width: '100%', color: '#fff', opacity: 1 }} onClick={() => setClockOpen(!clockOpen)}><span>Demo clock · <b>{fmtDate(state.date)}</b></span><span style={{ marginLeft: 12 }}>{clockOpen ? '–' : '+'}</span></button>
-      {clockOpen && <div className="btns"><button className="go" onClick={() => advance(1, true)}>Trigger remittance</button><button onClick={() => advance(1)}>+1 day</button><button onClick={() => advance(7)}>+7 days</button>
-        {role === 'admin' && <button onClick={() => go('admin')}>Admin console</button>}</div>}
+      <button className="x row between" style={{ width: '100%', color: '#fff', opacity: 1 }} onClick={() => setClockOpen(!clockOpen)}><span>{t('Demo clock')} · <b>{fmtDate(state.date)}</b></span><span style={{ marginLeft: 12 }}>{clockOpen ? '–' : '+'}</span></button>
+      {clockOpen && <div className="btns"><button className="go" onClick={() => advance(1, true)}>{t('Trigger remittance')}</button><button onClick={() => advance(1)}>{t('+1 day')}</button><button onClick={() => advance(7)}>{t('+7 days')}</button>
+        {role === 'admin' && <button onClick={() => go('admin')}>{t('Admin console')}</button>}</div>}
     </div>
   )
 
   return (
     <>
       {err && <div className="error" style={{ margin: 12 }} onClick={() => setErr('')}>{err}</div>}
-      {!state && <p className="muted" style={{ padding: 24 }}>{err ? 'Waiting for the API…' : 'Loading…'}</p>}
+      {!state && <p className="muted" style={{ padding: 24 }}>{err ? t('Waiting for the API…') : t('Loading…')}</p>}
       {state && page === 'admin' && <Admin {...ctx} />}
       {state && page === 'sender' && <Sender {...ctx} />}
       {state && page !== 'admin' && page !== 'sender' && (
         <div className="shell">
           <aside className="sidebar">
             <div className="brand"><span className="logo">R</span>RemitWise</div>
-            {NAV.map(([k, label]) => <button key={k} className={`nav ${page === k ? 'on' : ''}`} onClick={() => go(k)}><Icon name={k} />{label}</button>)}
+            <div style={{ margin: '-10px 0 14px' }}><LangToggle lang={lang} onChange={changeLang} /></div>
+            {NAV.map(([k, label]) => <button key={k} className={`nav ${page === k ? 'on' : ''}`} onClick={() => go(k)}><Icon name={k} />{t(label)}</button>)}
             <div className="sidefoot">
               {clock}
-              {role === 'admin' && <div className="viewas">Previewing a demo household<button className="link" onClick={() => go('sender')}>Preview sender view →</button><button className="link" onClick={() => go('admin')}>Back to admin console →</button></div>}
+              {role === 'admin' && <div className="viewas">{t('Previewing a demo household')}<button className="link" onClick={() => go('sender')}>{t('Preview sender view →')}</button><button className="link" onClick={() => go('admin')}>{t('Back to admin console →')}</button></div>}
               {role === 'admin' && <select value={hid} onChange={(e) => setHid(e.target.value)}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select>}
               {(() => {
                 const displayName = (role === 'admin' && person?.name) ? person.name : me.name
-                const displayRole = (role === 'admin' && page !== 'admin') ? 'Family wallet' : ROLE_LABEL[role]
+                const displayRole = t((role === 'admin' && page !== 'admin') ? 'Family wallet' : ROLE_LABEL[role])
                 return (
                   <div className="me">
                     <Avatar text={displayName} />
                     <div className="grow"><b>{displayName}</b><small>{displayRole}</small></div>
-                    <button className="link gray" onClick={logout}>Log out</button>
+                    <button className="link gray" onClick={logout}>{t('Log out')}</button>
                   </div>
                 )
               })()}
@@ -126,14 +129,14 @@ export default function App() {
           </aside>
           <main className="main">
             <div className="only-mobile row between" style={{ marginBottom: 10 }}>
-              {role === 'admin' ? <select value={hid} onChange={(e) => setHid(e.target.value)} style={{ width: 'auto' }}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select> : <span className="small muted">Signed in as <b>{me.name}</b></span>}
-              <span>{role === 'admin' && <button className="link" onClick={() => go('admin')}>Admin console</button>}<button className="link gray" onClick={logout}>Log out</button></span>
+              {role === 'admin' ? <select value={hid} onChange={(e) => setHid(e.target.value)} style={{ width: 'auto' }}>{hh.map((h) => <option key={h.household_id} value={h.household_id}>{h.name} · {h.regularity_class}</option>)}</select> : <span className="small muted">{t('Signed in as')} <b>{me.name}</b></span>}
+              <span><LangToggle lang={lang} onChange={changeLang} />{role === 'admin' && <button className="link" onClick={() => go('admin')}>{t('Admin console')}</button>}<button className="link gray" onClick={logout}>{t('Log out')}</button></span>
             </div>
             <div className="only-mobile" style={{ marginBottom: 12 }}>{clock}</div>
             <Page {...ctx} openAdd={openAdd} clearAdd={() => setOpenAdd(false)} />
-            <p className="tiny muted" style={{ textAlign: 'center', marginTop: 24 }}>Synthetic data only. No real money or customer data.</p>
+            <p className="tiny muted" style={{ textAlign: 'center', marginTop: 24 }}>{t('Synthetic data only. No real money or customer data.')}</p>
           </main>
-          <nav className="bottomnav">{NAV.map(([k, label]) => <button key={k} className={page === k ? 'on' : ''} onClick={() => go(k)}><Icon name={k} />{label}</button>)}</nav>
+          <nav className="bottomnav">{NAV.map(([k, label]) => <button key={k} className={page === k ? 'on' : ''} onClick={() => go(k)}><Icon name={k} />{t(label)}</button>)}</nav>
         </div>
       )}
       {showModal && <RemittanceModal {...ctx} onClose={() => setDismissed(state.pending.seq)} />}

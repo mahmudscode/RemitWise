@@ -166,3 +166,11 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; } th, td { text
 @media (max-width: 600px) { .topbar .badge { margin-left: 6px; font-size: 11px; padding: 3px 8px; } .topbar b { font-size: 17px !important; } .topbar .btn.sm { padding: 5px 10px; font-size: 12px; } }
 
 .simbanner{background:#fff6e0;border:1px solid #f1d58a;color:#7a4f00;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:14px}
+
+.langtoggle { display: inline-flex; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; background: #fff; }
+.langtoggle button { border: 0; background: transparent; padding: 4px 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.langtoggle button.on { background: var(--primary); color: #fff; }
+.langtoggle.dark { border-color: rgba(255,255,255,.55); background: transparent; }
+.langtoggle.dark button { color: rgba(255,255,255,.85); }
+.langtoggle.dark button.on { background: #fff; color: var(--primary); }
+html[lang="bn"] body { font-family: 'Noto Sans Bengali', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; line-height: 1.6; }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fmtDate, taka } from './api'
+import { t } from './i18n'
 
 const ICONS = {
   home: 'M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
@@ -18,7 +19,7 @@ export function Modal({ title, onClose, children, wide }) {
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" style={wide ? { maxWidth: 640 } : undefined} onClick={(e) => e.stopPropagation()}>
-        <div className="head"><h2 style={{ fontSize: 18 }}>{title}</h2><button className="link gray" onClick={onClose}>Close</button></div>
+        <div className="head"><h2 style={{ fontSize: 18 }}>{title}</h2><button className="link gray" onClick={onClose}>{t('Close')}</button></div>
         {children}
       </div>
     </div>
@@ -30,8 +31,8 @@ export function AI({ label = 'AI estimate', title = 'Why this estimate?', why, t
   const [open, setOpen] = useState(false)
   return (
     <>
-      <span className={`ai ${tone || ''}`}>{label}{why && <button className="link" onClick={() => setOpen(true)}>Why?</button>}</span>
-      {open && <Modal title={title} onClose={() => setOpen(false)}>{why}</Modal>}
+      <span className={`ai ${tone || ''}`}>{t(label)}{why && <button className="link" onClick={() => setOpen(true)}>{t('Why?')}</button>}</span>
+      {open && <Modal title={t(title)} onClose={() => setOpen(false)}>{why}</Modal>}
     </>
   )
 }
@@ -43,7 +44,7 @@ export const Toggle = ({ checked, onChange, label }) => (
 export const Avatar = ({ text }) => <span className="avatar">{(text || '?')[0].toUpperCase()}</span>
 
 export const STATUS = { scheduled: ['Scheduled', 'green'], paid: ['Paid', 'blue'], needs_review: ['Needs review', 'red'], at_risk: ['At risk', 'amber'], overdue: ['Overdue', 'red'] }
-export const Chip = ({ status }) => { const [t, c] = STATUS[status] || [status, 'gray']; return <span className={`chip ${c}`}>{t}</span> }
+export const Chip = ({ status }) => { const [tt, c] = STATUS[status] || [status, 'gray']; return <span className={`chip ${c}`}>{t(tt)}</span> }
 export const DOT = { scheduled: 'green', paid: 'blue', needs_review: 'red', at_risk: 'amber', overdue: 'red' }
 
 export const Slider = ({ label, value, max, onChange }) => (
@@ -53,7 +54,7 @@ export const Slider = ({ label, value, max, onChange }) => (
 
 /** Projected balance with an uncertainty band; red where the middle path is below zero. */
 export function Projection({ pj, height = 230 }) {
-  if (!pj) return <p className="muted">Available once a forecast exists.</p>
+  if (!pj) return <p className="muted">{t('Available once a forecast exists.')}</p>
   const rows = [{ date: 'today', band: [pj.starting_balance, pj.starting_balance], pos: pj.starting_balance, neg: null }].concat(
     pj.days.map((d, i) => ({ date: pj.dates[i], band: [pj.p10[i], pj.p90[i]], pos: pj.p50[i] >= 0 ? pj.p50[i] : null, neg: pj.p50[i] < 0 ? pj.p50[i] : null })))
   const firstNeg = pj.p50.findIndex((v) => v < 0)
@@ -64,21 +65,21 @@ export function Projection({ pj, height = 230 }) {
         <ResponsiveContainer>
           <ComposedChart data={rows} margin={{ left: 0, right: 6, top: 8 }}>
             <CartesianGrid vertical={false} stroke="#eef2f6" />
-            <XAxis dataKey="date" ticks={ticks} tickFormatter={(v, i) => (i === 0 ? 'Today' : i === 3 ? 'Next transfer' : fmtDate(v))} fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis dataKey="date" ticks={ticks} tickFormatter={(v, i) => (i === 0 ? t('Today') : i === 3 ? t('Next transfer') : fmtDate(v))} fontSize={12} tickLine={false} axisLine={false} />
             <YAxis fontSize={11} width={40} tickLine={false} axisLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-            <Tooltip formatter={(v) => (Array.isArray(v) ? `${taka(v[0])} to ${taka(v[1])}` : taka(v))} labelFormatter={(l) => (l === 'today' ? 'Today' : fmtDate(l))} />
+            <Tooltip formatter={(v) => (Array.isArray(v) ? `${taka(v[0])} to ${taka(v[1])}` : taka(v))} labelFormatter={(l) => (l === 'today' ? t('Today') : fmtDate(l))} />
             <ReferenceLine y={0} stroke="#d14343" strokeDasharray="4 3" />
-            <Area isAnimationActive={false} dataKey="band" name="Forecast range" stroke="none" fill="#0e6e9c" fillOpacity={0.12} />
-            <Line isAnimationActive={false} dataKey="pos" name="Most likely" stroke="#0e6e9c" dot={false} strokeWidth={2.5} connectNulls={false} />
-            <Line isAnimationActive={false} dataKey="neg" name="Below zero" stroke="#d14343" dot={false} strokeWidth={3} connectNulls={false} />
+            <Area isAnimationActive={false} dataKey="band" name={t('Forecast range')} stroke="none" fill="#0e6e9c" fillOpacity={0.12} />
+            <Line isAnimationActive={false} dataKey="pos" name={t('Most likely')} stroke="#0e6e9c" dot={false} strokeWidth={2.5} connectNulls={false} />
+            <Line isAnimationActive={false} dataKey="neg" name={t('Below zero')} stroke="#d14343" dot={false} strokeWidth={3} connectNulls={false} />
             {pj.bills.map((b, i) => <ReferenceDot key={i} x={pj.dates[b.day - 1]} y={pj.p50[b.day - 1]} r={5} fill="#0f2a44" stroke="#fff" strokeWidth={1.5} />)}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <p className="tiny muted">● Dots = EMI and bill payments · Red dashed line = zero balance · Shaded = forecast range</p>
+      <p className="tiny muted">{t('● Dots = EMI and bill payments · Red dashed line = zero balance · Shaded = forecast range')}</p>
       {firstNeg >= 0
-        ? <p className="small txt-red" style={{ fontWeight: 600, marginTop: 6 }}>Balance may drop below zero around {fmtDate(pj.dates[firstNeg])}{pj.next_p90 > firstNeg + 1 ? ' if the transfer comes late.' : '.'}</p>
-        : <p className="small txt-green" style={{ fontWeight: 600, marginTop: 6 }}>Balance is expected to stay above zero until your next transfer.</p>}
+        ? <p className="small txt-red" style={{ fontWeight: 600, marginTop: 6 }}>{t('Balance may drop below zero around {d}', { d: fmtDate(pj.dates[firstNeg]) })}{pj.next_p90 > firstNeg + 1 ? t(' if the transfer comes late.') : '.'}</p>
+        : <p className="small txt-green" style={{ fontWeight: 600, marginTop: 6 }}>{t('Balance is expected to stay above zero until your next transfer.')}</p>}
     </>
   )
 }
@@ -91,3 +92,14 @@ export const FEATURE = {
   amt_mean_all: 'Usual transfer amount', amt_cv: 'How much amounts vary', dom: 'Day of the month', month: 'Time of year', n_events: 'Length of history',
   local_income_monthly: 'Local income', size: 'Household size', is_rural: 'Rural or urban',
 }
+
+export function LangToggle({ lang, onChange, dark }) {
+  return (
+    <div className={`langtoggle ${dark ? 'dark' : ''}`} role="group" aria-label="Language">
+      <button className={lang === 'en' ? 'on' : ''} onClick={() => onChange('en')}>EN</button>
+      <button className={lang === 'bn' ? 'on' : ''} onClick={() => onChange('bn')}>বাংলা</button>
+    </div>
+  )
+}
+
+export const ft = (k) => (FEATURE[k] ? t(FEATURE[k]) : k.replace(/_/g, ' '))

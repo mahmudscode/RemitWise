@@ -506,14 +506,14 @@ def request_more(sid: str, body: VisReq, w: Who = Depends(sender_only)):
 # ---------------- explanation ----------------
 @app.get("/api/households/{hid}/summary")
 def summary(hid: str, type: str = Query("plan", pattern="^(plan|warning|progress|monthly)$"),
-            lang: str = Query("en", pattern="^en$"), w: Who = Depends(family_or_admin)):
+            lang: str = Query("en", pattern="^(en|bn)$"), w: Who = Depends(family_or_admin)):
     _check(hid)
     e = _eng()
     st = e.get(hid)
     if type == "plan":
         opts = e.propose(hid, st)
         if not opts:
-            return dict(text="No new remittance to plan right now.", source="template", label="generated explanation",
+            return dict(text="এখন পরিকল্পনা করার মতো নতুন রেমিট্যান্স নেই।" if lang == "bn" else "No new remittance to plan right now.", source="template", label="generated explanation",
                         validated=True, source_facts={}, language=lang)
         f = e.arrival_forecast(hid, st["pending"]["seq"])
         facts = dict(plan=opts[1], rem_p50=f["gap_p50"], rem_p90=f["gap_p90"])

@@ -617,3 +617,24 @@ def test_medical_emergency_logs_expense_and_explains_it(client):
     assert st["spendable"] + st["buffer"] < s0["spendable"] + s0["buffer"]
     sf = client.get(f"/api/households/{hid}/shortfall", headers=H("family", hid)).json()
     assert any(d["factor"] == "medical_emergency" and "medical" in d["detail"] for d in sf["drivers"])
+
+
+# ---------- Bangla ----------
+def test_bangla_summary_templates_and_endpoint(client):
+    facts = dict(month=dict(on_time_pct=90, late_fees_avoided=300, savings_built=5000,
+                            suggestion="keep the bill vault funded first when a transfer arrives."))
+    txt = explain.template("monthly", facts, "bn")
+    assert "৳300" in txt and "90%" in txt and "ভল্ট" in txt
+    assert explain.validate(txt, facts)  # numbers still grounded in the facts
+    hid = _hid(client)
+    r = client.get(f"/api/households/{hid}/summary?type=monthly&lang=bn", headers=H("family", hid))
+    assert r.status_code == 200 and r.json()["language"] == "bn"
+    assert any("ঀ" <= ch <= "৿" for ch in r.json()["text"])  # Bengali script
+    assert client.get(f"/api/households/{hid}/summary?type=monthly&lang=fr", headers=H("family", hid)).status_code == 422
+
+
+def test_bangla_warning_template_uses_driver_text():
+    facts = dict(shortfall=dict(prob=0.7, runout_p50=4.2, severity="amber",
+                                drivers=[dict(factor="medical_emergency", amount=8000, detail="x", magnitude=0.7)]))
+    txt = explain.template("warning", facts, "bn")
+    assert "70%" in txt and "৳8,000" in txt

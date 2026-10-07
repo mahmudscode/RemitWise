@@ -44,10 +44,11 @@ export async function api(path, { method = 'GET', body } = {}) {
 
 export const taka = (n) => (n == null ? '–' : '৳' + Math.round(n).toLocaleString('en-IN'))
 export const pct = (x) => `${Math.round(x * 100)}%`
+import { locale } from './i18n'
 export const fmtDate = (s) => {
   if (!s) return '–'
   const d = new Date(s + 'T00:00:00')
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' })
 }
-export const longDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-export const monthName = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { month: 'long' })
+export const longDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' })
+export const monthName = (s) => new Date(s + 'T00:00:00').toLocaleDateString(locale(), { month: 'long' })
