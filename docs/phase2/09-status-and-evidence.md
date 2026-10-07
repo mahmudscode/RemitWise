@@ -11,7 +11,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 5 | upay colours | Done | Palette sampled from the logo; AA contrast checked |
 | 6 | Faster load, guided demo | Done | Waking screen, skeletons, 5-step Guided demo (also floating bar) |
 | 7 | OTP and password reset | Done (simulated) | Sign-up, forgot password; tests for expiry, lockout, reset |
-| 8 | Micro-savings | Done | Goals card; pauses on risk; saves only |
+| 8 | Micro-savings | Done | Goals card; pauses on risk; optional **simulated** yield pot with its own consent |
 | 9 | Not a budgeting app | Done | Home explainer; sign-in comparison |
 | 10 | Groq path and PostgreSQL | Done | Mocked-HTTP Groq tests; **full suite run on PostgreSQL 18.6** |
 | 11 | Data retention | Done | `docs/data-retention.md`, `DELETE /api/me`, purge on start-up |
@@ -32,4 +32,5 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 - Groq was never called against the real service (no key); only a mocked HTTP layer.
 - Voice output and microphone input were not tested on a device with a Bangla voice.
 - Security checks are automated self-checks, not a penetration test; the load test is a one-machine smoke test.
+- The yield pot is a simulation: synthetic money, an illustrative rate, no real instrument, no advice. A real one needs a licensed partner.
 - Tasks 15, 16 and 18 did not improve accuracy on synthetic data; the real question belongs to a pilot.

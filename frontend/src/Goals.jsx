@@ -17,6 +17,7 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const [delText, setDelText] = useState('')
   const [delOpen, setDelOpen] = useState(false)
   const [agree, setAgree] = useState(false)
+  const [yAgree, setYAgree] = useState(false)
   const timer = useRef(null)
 
   useEffect(() => {
@@ -36,7 +37,8 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const planned = state.goals.reduce((a, g) => a + (g.pace.per_month || 0), 0)
   const shared = state.goals.filter((g) => g.shared).length
   const tone = (g) => (g.pace.on_track === false ? 'amber' : g.pct >= 50 ? 'green' : '')
-  const saveMicro = (patch) => act(async () => setMicro(await api(`/households/${hid}/micro`, { ...H, method: 'POST', body: { enabled: micro.enabled, consent: agree, ...patch } }))).catch(() => {})
+  const saveMicro = (patch) => act(async () => setMicro(await api(`/households/${hid}/micro`, { ...H, method: 'POST', body: { enabled: micro.enabled, consent: agree, yield_consent: yAgree, ...patch } }))).catch(() => {})
+  const withdrawYield = () => act(async () => setMicro(await api(`/households/${hid}/micro/yield/withdraw`, { ...H, method: 'POST', body: {} }))).catch(() => {})
   const create = async (e) => {
     e.preventDefault(); setMsg('')
     await act(async () => {
@@ -92,7 +94,7 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
 
       {micro && (
         <section className="card">
-          <div className="row between wrap"><h2>{t('Micro-savings')}</h2><span className="ai">{t('Savings only, no investing')}</span></div>
+          <div className="row between wrap"><h2>{t('Micro-savings')}</h2><span className="ai">{t('Savings, with an optional simulated yield pot')}</span></div>
           <p className="small muted" style={{ margin: '6px 0 10px' }}>{t('When on, a few taka move to your emergency fund or a goal at the end of each day, only when your bills are covered and no shortfall warning is active. It is off until you switch it on, and you can stop any time.')}</p>
           {!micro.enabled && <label className="check" style={{ marginBottom: 8 }}><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t('I agree to move small amounts to savings automatically.')}</label>}
           <Toggle checked={micro.enabled} label={micro.enabled ? t('Micro-savings is on') : t('Micro-savings is off')} onChange={(on) => { if (on && !agree) { setMsg(t('Tick the box to agree first.')); return } setMsg(''); saveMicro({ enabled: on }) }} />
@@ -100,14 +102,23 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
             <div className="grow"><label className="small muted">{t('How much')}</label>
               <select value={micro.mode} onChange={(e) => saveMicro({ mode: e.target.value })}>{micro.modes.map((m) => <option key={m.id} value={m.id}>{t(m.label)}</option>)}</select></div>
             <div className="grow"><label className="small muted">{t('Save into')}</label>
-              <select value={micro.target} onChange={(e) => saveMicro({ target: e.target.value })}>{micro.targets.map((x) => <option key={x.id} value={x.id}>{tb(x.name)}</option>)}</select></div>
+              <select value={micro.target} onChange={(e) => { if (e.target.value === 'yield' && !micro.yield_pot.consented && !yAgree) { setMsg(t('Tick the yield box to agree first.')); return } saveMicro({ target: e.target.value }) }}>{micro.targets.map((x) => <option key={x.id} value={x.id}>{tb(x.name)}</option>)}</select></div>
           </div>
+          {!micro.yield_pot.consented && <label className="check" style={{ marginTop: 8 }}><input type="checkbox" checked={yAgree} onChange={(e) => setYAgree(e.target.checked)} />{t('I understand the yield pot is a simulation of a low-risk option, not a real product and not advice.')}</label>}
+          {(micro.yield_pot.consented || micro.yield_pot.balance > 0) && (
+            <div className="yieldbox">
+              <div className="row between wrap"><b>{t('Simulated yield pot')}</b><span className="ai">{t('Simulated')}</span></div>
+              <p style={{ margin: '6px 0' }}>{taka(micro.yield_pot.balance)} <span className="muted small">{t('({e} earned at an illustrative {r}% a year)', { e: taka(micro.yield_pot.earned), r: (micro.yield_pot.rate * 100).toFixed(1) })}</span></p>
+              <button className="btn sm" disabled={micro.yield_pot.balance <= 0} onClick={withdrawYield}>{t('Withdraw all to wallet')}</button>
+              <p className="tiny muted" style={{ marginTop: 6 }}>{t('Synthetic money and an illustrative rate. A real product could lose value. No lock-in, no fee, and it pauses when your bills are at risk.')}</p>
+            </div>
+          )}
           <div className="row between wrap" style={{ marginTop: 12 }}>
             <b>{t('Micro-saved this month: {amt}', { amt: taka(micro.month_total) })}</b>
             {micro.paused && <span className="chip amber">{t('Paused to protect your bills')}</span>}
             {micro.enabled && !micro.paused && <span className="chip green">{t('Saving')}</span>}
           </div>
-          <p className="tiny muted" style={{ marginTop: 6 }}>{t('A few taka a day at most. Daily cash for the next two days is never touched. This is saving, not investing: no yield, no products, no advice.')}</p>
+          <p className="tiny muted" style={{ marginTop: 6 }}>{t('A few taka a day at most. Daily cash for the next two days is never touched. The yield pot is optional and simulated; nothing here is financial advice.')}</p>
         </section>
       )}
 

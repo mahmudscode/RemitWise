@@ -46,7 +46,7 @@ Maps to the guideline's minimums (worth 5% of score, but also a trust story for 
 - Cultural/family dynamics vary; tool must not replace family decision-making.
 
 ## Final build additions
-- **Micro-savings** is off by default, needs explicit consent, moves at most ৳100 a day, never touches the next two days of cash, and pauses automatically when a warning is amber/red or bills are at risk ("Paused to protect your bills"). It saves; it never invests or advises.
+- **Micro-savings** is off by default, needs explicit consent, moves at most ৳100 a day, never touches the next two days of cash, and pauses automatically when a warning is amber/red or bills are at risk ("Paused to protect your bills"). By default it saves into the emergency fund or a goal. The family can additionally, with a separate consent, choose a **simulated low-risk yield pot**: synthetic money, an illustrative rate (`SIM_YIELD_RATE`, 5% a year), withdrawable in full at any time with no lock-in or fee, paused under the same risk rules, labelled "Simulated" everywhere. It is not a real investment product and not financial advice; a real product could lose value, and a real launch would need a licensed partner and regulatory review.
 - **Monitoring.** Admin → Monitoring tracks rolling error and coverage, per-group flags and input drift. In production this would alert the model owner.
 - **Stress test.** The model is not robust to systemic shocks (coverage falls to 26%); this is shown, not hidden.
 - **Experiments are labelled.** Where an experiment is switched on without improving accuracy, the Admin screen says so.

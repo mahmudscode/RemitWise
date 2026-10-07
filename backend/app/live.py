@@ -177,7 +177,8 @@ class Engine:
                     goals={}, debt=0.0, shortfall_days=0, last_arrival_day=int(ev.loc[ev.seq == k - 1, "day"].iloc[0]),
                     last_seq=k - 1, pending=None, adherent=False, overrides={}, extra_income=0.0,
                     need_mult=1.0, eid_until=-1, amt_mult={}, micro_on=False, micro_mode="roundup", micro_target="emergency",
-                    micro_total=0.0, micro_log=[], micro_paused=None, micro_consent_day=None, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
+                    micro_total=0.0, micro_log=[], micro_paused=None, micro_consent_day=None,
+                    yield_balance=0.0, yield_principal=0.0, yield_consent_day=None, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
                     cycle_forecast=None, bill_cfg=cfg, mandates=[], bills={}, bill_override={}, paid_log=[],
                     bills_due=0, bills_on_time=0, late_fees=0.0, fees_avoided=0.0, overbilling_avoided=0.0,
                     anomalies_caught=0, contrib={}, sender_ask=False)
@@ -544,7 +545,7 @@ class Engine:
         cards = self.bill_cards(hid, st, 45, 0)
         upcoming = [c for c in cards if c["display_status"] in ("scheduled", "at_risk", "needs_review")][:3]
         out = dict(available=round(st["spendable"]), reserved_bills=round(st["vault"]),
-                   savings=round(st["buffer"] + sum(st["goals"].values())), upcoming=upcoming, safe=None, alert=None)
+                   savings=round(st["buffer"] + sum(st["goals"].values()) + st["yield_balance"]), upcoming=upcoming, safe=None, alert=None)
         if f is None:
             return out
         horizon = f["rem_p50"] + 0.6 * (f["rem_p90"] - f["rem_p50"])
@@ -801,6 +802,8 @@ class Engine:
             st["day"] += 1
             d = st["day"]
             steps += 1
+            if st["yield_balance"] > 0:  # SIMULATED yield: daily accrual at an illustrative annual rate
+                st["yield_balance"] *= 1.0 + config.SIM_YIELD_RATE / 365.0
             if d in arrivals and arrivals[d][0] >= self.start_seq(hid):
                 seq, amount = arrivals[d]
                 amount = amount * st["amt_mult"].get(str(seq), 1.0)  # systemic-shock scenario cuts some transfers
@@ -982,6 +985,13 @@ class Engine:
             return
         goals = {g.id: g for g in self.goals_list(hid, st)}
         tgt = st["micro_target"]
+        if tgt == "yield" and st.get("yield_consent_day"):
+            st["yield_balance"] += amt
+            st["yield_principal"] += amt
+            st["spendable"] -= amt
+            st["micro_total"] += amt
+            st["micro_log"] = (st["micro_log"] + [dict(day=d, amount=amt)])[-400:]
+            return
         if tgt in goals and goals[tgt].current < goals[tgt].target:
             st["goals"][tgt] = st["goals"].get(tgt, 0.0) + amt
         else:
@@ -996,22 +1006,45 @@ class Engine:
 
     def micro_view(self, hid: str, st: dict) -> dict:
         goals = self.goals_list(hid, st)
-        names = {"emergency": "Emergency fund", **{g.id: g.name for g in goals}}
+        names = {"emergency": "Emergency fund", "yield": "Simulated yield pot", **{g.id: g.name for g in goals}}
+        bal, prin = round(st["yield_balance"], 2), round(st["yield_principal"], 2)
         paused = st.get("micro_paused") if st.get("micro_on") else None
         return dict(enabled=bool(st["micro_on"]), mode=st["micro_mode"], target=st["micro_target"], target_name=names.get(st["micro_target"], "Emergency fund"),
                     month_total=self.micro_month_total(st), total=round(st["micro_total"], 2), paused=paused,
                     paused_text="Paused to protect your bills" if paused else None, consent_day=st.get("micro_consent_day"),
                     modes=[dict(id=k, label=v) for k, v in MICRO_MODES.items()],
-                    targets=[dict(id="emergency", name="Emergency fund")] + [dict(id=g.id, name=g.name) for g in goals])
+                    yield_pot=dict(balance=bal, principal=prin, earned=round(max(bal - prin, 0.0), 2), rate=config.SIM_YIELD_RATE,
+                                   consented=bool(st.get("yield_consent_day")), simulated=True,
+                                   note="SIMULATED: an illustrative rate on synthetic money, not a real product and not advice. Withdraw any time."),
+                    targets=[dict(id="emergency", name="Emergency fund"), dict(id="yield", name="Simulated yield pot")] + [dict(id=g.id, name=g.name) for g in goals])
 
-    def set_micro(self, hid: str, st: dict, enabled: bool, mode: str | None, target: str | None, consent: bool) -> dict:
+    def withdraw_yield(self, hid: str, st: dict, amount: float | None) -> dict:
+        bal = st["yield_balance"]
+        if bal <= 0.005:
+            raise ValueError("the simulated yield pot is empty")
+        amt = bal if amount is None else float(amount)
+        if amt <= 0 or amt > bal + 0.005:
+            raise ValueError("that is more than the pot holds")
+        amt = min(amt, bal)
+        share = amt / bal
+        st["yield_principal"] -= st["yield_principal"] * share
+        st["yield_balance"] = bal - amt
+        st["spendable"] += amt
+        st["log"].append(dict(day=st["day"], type="yield_withdrawn", amount=round(amt)))
+        return st
+
+    def set_micro(self, hid: str, st: dict, enabled: bool, mode: str | None, target: str | None, consent: bool, yield_consent: bool = False) -> dict:
         if mode is not None:
             if mode not in MICRO_MODES:
                 raise ValueError("unknown micro-savings mode")
             st["micro_mode"] = mode
         if target is not None:
-            if target != "emergency" and target not in {g.id for g in self.goals_list(hid, st)}:
+            if target not in ("emergency", "yield") and target not in {g.id for g in self.goals_list(hid, st)}:
                 raise ValueError("unknown micro-savings target")
+            if target == "yield" and not st.get("yield_consent_day"):
+                if not yield_consent:
+                    raise ValueError("The simulated yield pot needs its own consent. Confirm that you understand it is a simulation, not advice.")
+                st["yield_consent_day"] = _d(st["day"])
             st["micro_target"] = target
         if enabled and not st["micro_on"]:
             if not consent:

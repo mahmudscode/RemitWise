@@ -1417,3 +1417,57 @@ def test_live_model_summary_is_honest_about_the_forced_experiments():
     # whatever is switched on, the cost or gain is measured and visible, and the live model must not be badly worse
     assert lm["live"]["gap_mae"] <= lm["baseline"]["gap_mae"] + 0.3
     assert abs(lm["live"]["gap_coverage"] - config.INTERVAL_COVERAGE) < 0.08
+
+
+# ---------- simulated low-risk yield pot ----------
+def test_yield_target_needs_its_own_consent_and_never_moves_money_without_it(client):
+    hid = _micro_house(client)
+    hdr = H("family", hid)
+    r = client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, target="yield"), headers=hdr)
+    assert r.status_code == 400 and "consent" in r.json()["detail"].lower()
+    ok = client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, target="yield", yield_consent=True), headers=hdr)
+    assert ok.status_code == 200 and ok.json()["yield_pot"]["consented"] and ok.json()["yield_pot"]["simulated"]
+    assert "SIMULATED" in ok.json()["yield_pot"]["note"]
+
+
+def test_yield_pot_collects_microsavings_accrues_daily_and_withdraws_in_full(client):
+    hid = _micro_house(client)
+    hdr = H("family", hid)
+    client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, target="yield", yield_consent=True), headers=hdr)
+    s0 = client.get(f"/api/households/{hid}/state", headers=hdr).json()
+    client.post(f"/api/households/{hid}/advance", json=dict(days=4), headers=hdr)
+    m = client.get(f"/api/households/{hid}/micro", headers=hdr).json()
+    pot = m["yield_pot"]
+    assert pot["principal"] > 0 and pot["balance"] >= pot["principal"]  # accrues, never loses on this simulated rate
+    assert abs(pot["principal"] - m["total"]) < 0.05  # everything saved went to the pot
+    s1 = client.get(f"/api/households/{hid}/state", headers=hdr).json()
+    assert abs(s1["buffer"] - s0["buffer"]) < 1  # not into the emergency fund this time
+    client.post(f"/api/households/{hid}/advance", json=dict(days=20), headers=hdr)
+    big = client.get(f"/api/households/{hid}/micro", headers=hdr).json()["yield_pot"]
+    assert big["earned"] > 0
+    before = client.get(f"/api/households/{hid}/state", headers=hdr).json()["spendable"]
+    w = client.post(f"/api/households/{hid}/micro/yield/withdraw", json={}, headers=hdr)
+    assert w.status_code == 200 and w.json()["yield_pot"]["balance"] == 0
+    after = client.get(f"/api/households/{hid}/state", headers=hdr).json()["spendable"]
+    assert abs(after - before - big["balance"]) < 1  # the full pot, with its earnings, is back in the wallet
+
+
+def test_yield_accrual_matches_the_stated_rate():
+    from app import config
+    assert 0 < config.SIM_YIELD_RATE < 0.15  # illustrative and conservative, not a promise
+    daily = (1 + config.SIM_YIELD_RATE / 365) ** 365
+    assert abs(daily - (1 + config.SIM_YIELD_RATE)) < 0.002
+
+
+def test_yield_withdrawal_bounds_and_pause_rule(client):
+    hid = _micro_house(client)
+    hdr = H("family", hid)
+    assert client.post(f"/api/households/{hid}/micro/yield/withdraw", json={}, headers=hdr).status_code == 400  # empty pot
+    assert client.post(f"/api/households/{hid}/micro/yield/withdraw", json=dict(amount=-5), headers=hdr).status_code == 422
+    client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, target="yield", yield_consent=True), headers=hdr)
+    _step(client, hid, 4)  # warning
+    t0 = client.get(f"/api/households/{hid}/micro", headers=hdr).json()["total"]
+    client.post(f"/api/households/{hid}/advance", json=dict(days=2), headers=hdr)
+    m = client.get(f"/api/households/{hid}/micro", headers=hdr).json()
+    assert m["paused"] and m["total"] == t0  # the yield pot is paused under risk exactly like other micro-savings
+    assert client.post(f"/api/households/{hid}/micro/yield/withdraw", json=dict(amount=1e9), headers=hdr).status_code in (400, 422)

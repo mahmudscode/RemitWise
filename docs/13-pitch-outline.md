@@ -26,7 +26,7 @@ Open with the Phase 1 comments and the screen that answers each:
 - *Concrete scenarios* → Eid surge, medical emergency, delayed transfer, systemic shock.
 - *Bangla, upay identity, faster first load, smooth demo path* → the toggle, brand colours, waking screen and Guided demo.
 - *Security and responsible AI* → OTP and password reset (simulated), data-retention policy and self-deletion, monitoring panel, security checks (basic, not a pentest).
-- *Innovation and business* → consent-based micro-savings (save, never invest), KPI view with editable assumptions, pilot plan.
+- *Innovation and business* → consent-based micro-savings with an optional simulated yield pot (answers the "low-risk yield" suggestion; not a real product), KPI view with editable assumptions, pilot plan.
 - *Scalability* → signed webhook adapter, load-test numbers (laptop, one worker), PostgreSQL run.
 Be upfront: several experiments (irregular-sender features, sequence models, per-household correction) did not improve accuracy on synthetic data; we show the result and say a pilot is the real test.
 Close: "These are our next phase, a controlled pilot with governed upay data."

@@ -101,12 +101,12 @@ const BN = {
   'New password (at least 8 characters)': 'নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)', 'Changing your password signs you out everywhere.': 'পাসওয়ার্ড বদলালে সব জায়গা থেকে আপনি সাইন-আউট হয়ে যাবেন।',
   'Change password': 'পাসওয়ার্ড বদলান', 'Forgot password?': 'পাসওয়ার্ড ভুলে গেছেন?',
   // micro-savings
-  'Micro-savings': 'মাইক্রো-সঞ্চয়', 'Savings only, no investing': 'শুধু সঞ্চয়, কোনো বিনিয়োগ নয়',
+  'Micro-savings': 'মাইক্রো-সঞ্চয়', 'Savings, with an optional simulated yield pot': 'শুধু সঞ্চয়, কোনো বিনিয়োগ নয়',
   'When on, a few taka move to your emergency fund or a goal at the end of each day, only when your bills are covered and no shortfall warning is active. It is off until you switch it on, and you can stop any time.': 'চালু থাকলে প্রতিদিনের শেষে কয়েক টাকা জরুরি তহবিলে বা একটি লক্ষ্যে সরে যায়, তবে শুধু যখন আপনার বিল সংরক্ষিত এবং কোনো ঘাটতির সতর্কতা নেই। আপনি চালু না করা পর্যন্ত এটি বন্ধ থাকে, আর যেকোনো সময় থামাতে পারেন।',
   'I agree to move small amounts to savings automatically.': 'আমি স্বয়ংক্রিয়ভাবে ছোট অঙ্কের টাকা সঞ্চয়ে সরাতে সম্মত।', 'Micro-savings is on': 'মাইক্রো-সঞ্চয় চালু আছে', 'Micro-savings is off': 'মাইক্রো-সঞ্চয় বন্ধ আছে',
   'Tick the box to agree first.': 'আগে সম্মতির বাক্সে টিক দিন।', 'How much': 'কত টাকা', 'Save into': 'কোথায় জমবে', 'Round spending up to the next ৳10': 'খরচ পরবর্তী ৳১০-এ পূর্ণ করে নেওয়া',
   '1% of safe-to-spend surplus': 'নিরাপদে খরচযোগ্য উদ্বৃত্তের ১%', 'Micro-saved this month: {amt}': 'এই মাসে মাইক্রো-সঞ্চয়: {amt}', 'Paused to protect your bills': 'আপনার বিল রক্ষার জন্য বিরতিতে', Saving: 'জমছে',
-  'A few taka a day at most. Daily cash for the next two days is never touched. This is saving, not investing: no yield, no products, no advice.': 'দিনে সর্বোচ্চ কয়েক টাকা। পরের দুই দিনের নগদ কখনও ছোঁয়া হয় না। এটি সঞ্চয়, বিনিয়োগ নয়: কোনো মুনাফা, পণ্য বা আর্থিক পরামর্শ নেই।',
+  'A few taka a day at most. Daily cash for the next two days is never touched. The yield pot is optional and simulated; nothing here is financial advice.': 'দিনে সর্বোচ্চ কয়েক টাকা। পরের দুই দিনের নগদ কখনও ছোঁয়া হয় না। মুনাফা তহবিল ঐচ্ছিক ও সিমুলেটেড; এখানে কিছুই আর্থিক পরামর্শ নয়।',
   // not a budgeting app
   'Budget apps track what you spent. RemitWise predicts when money will arrive and plans around that uncertainty.': 'বাজেট অ্যাপ দেখায় আপনি কী খরচ করেছেন। রিমিটওয়াইজ আগেই অনুমান করে টাকা কখন আসবে এবং সেই অনিশ্চয়তা মাথায় রেখে পরিকল্পনা করে।',
   'Budgeting app vs RemitWise': 'বাজেটিং অ্যাপ বনাম রিমিটওয়াইজ', 'Budgeting app': 'বাজেটিং অ্যাপ', Income: 'আয়', 'Fixed salary': 'নির্দিষ্ট বেতন', 'Irregular remittances': 'অনিয়মিত রেমিট্যান্স',
@@ -130,6 +130,11 @@ const BN = {
   'Your next transfer is expected in {a} to {b} days, about {m} to {n} taka. This is an estimate.': 'আপনার পরবর্তী ট্রান্সফার {a} থেকে {b} দিনের মধ্যে আসার কথা, প্রায় {m} থেকে {n} টাকা। এটি একটি অনুমান।',
   'No bills are due soon.': 'শিগগিরই কোনো বিল পরিশোধের নেই।', '{name} {amt} due {d}': '{name} {amt}, মেয়াদ {d}', 'Bills coming up: {list}.': 'আসন্ন বিল: {list}।',
   'Sorry, I can only answer three questions: how much can I spend, when is the next transfer, and which bills are due.': 'দুঃখিত, আমি শুধু তিনটি প্রশ্নের উত্তর দিতে পারি: কত টাকা খরচ করতে পারি, পরের টাকা কবে আসবে, এবং কোন বিল বাকি।',
+  // simulated yield pot
+  'Simulated yield pot': 'সিমুলেটেড মুনাফা তহবিল', Simulated: 'সিমুলেটেড', 'Tick the yield box to agree first.': 'আগে মুনাফা তহবিলের সম্মতির বাক্সে টিক দিন।',
+  'I understand the yield pot is a simulation of a low-risk option, not a real product and not advice.': 'আমি বুঝি যে মুনাফা তহবিল একটি কম ঝুঁকির বিকল্পের সিমুলেশন, কোনো আসল পণ্য নয় এবং আর্থিক পরামর্শও নয়।',
+  '({e} earned at an illustrative {r}% a year)': '({e} আয়, বছরে উদাহরণস্বরূপ {r}% হারে)', 'Withdraw all to wallet': 'সব ওয়ালেটে ফিরিয়ে আনুন',
+  'Synthetic money and an illustrative rate. A real product could lose value. No lock-in, no fee, and it pauses when your bills are at risk.': 'কৃত্রিম টাকা ও উদাহরণস্বরূপ হার। আসল পণ্যে মূল্য কমে যেতে পারে। কোনো আটকে রাখা বা ফি নেই, আর বিল ঝুঁকিতে থাকলে এটি বিরতিতে যায়।',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

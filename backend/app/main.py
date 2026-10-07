@@ -185,6 +185,11 @@ class MicroIn(BaseModel):
     mode: str | None = Field(None, max_length=12)
     target: str | None = Field(None, max_length=40)
     consent: bool = False
+    yield_consent: bool = False
+
+
+class YieldWithdraw(BaseModel):
+    amount: float | None = Field(None, gt=0, le=10_000_000)  # empty = everything
 
 
 @app.get("/api/households/{hid}/micro")
@@ -201,11 +206,26 @@ def set_micro(hid: str, body: MicroIn, w: Who = Depends(family_or_admin)):
     e = _eng()
     st = e.get(hid)
     try:
-        st = e.set_micro(hid, st, body.enabled, body.mode, body.target, body.consent)
+        st = e.set_micro(hid, st, body.enabled, body.mode, body.target, body.consent, body.yield_consent)
     except ValueError as ex:
         raise HTTPException(400, str(ex))
     e.save(hid, st)
     db.audit(w.role, "micro_savings_on" if body.enabled else "micro_savings_off", hid, dict(mode=st["micro_mode"], target=st["micro_target"]))
+    return _stamp(e.micro_view(hid, st))
+
+
+@app.post("/api/households/{hid}/micro/yield/withdraw")
+def withdraw_yield(hid: str, body: YieldWithdraw, w: Who = Depends(family_or_admin)):
+    """Move money out of the SIMULATED yield pot back to the wallet. No lock-in, no fee."""
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st = e.withdraw_yield(hid, st, body.amount)
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, "yield_withdrawn", hid, dict(amount=body.amount))
     return _stamp(e.micro_view(hid, st))
 
 
@@ -651,7 +671,7 @@ def _month_facts(e: Engine, hid: str, st: dict) -> dict:
     if st["shortfall_days"] > 0:
         suggestion = "set a small daily spending limit in the week before the next transfer."
     out = dict(on_time_pct=pct, late_fees_avoided=round(st["fees_avoided"]),
-               savings_built=round(st["buffer"] + sum(st["goals"].values())),
+               savings_built=round(st["buffer"] + sum(st["goals"].values()) + st["yield_balance"]),
                suggestion=suggestion)
     if st.get("micro_on") or st.get("micro_total"):
         out["micro_saved"] = round(e.micro_month_total(st))

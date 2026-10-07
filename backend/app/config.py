@@ -54,3 +54,6 @@ _flag = lambda name: os.getenv(name, "true").lower() in ("1", "true", "yes")
 FORCE_IRREGULAR_MODEL = _flag("FORCE_IRREGULAR_MODEL")   # regularity features + group-wise calibration
 FORCE_TEMPORAL_FEATURES = _flag("FORCE_TEMPORAL_FEATURES")  # lag / rolling features
 FORCE_ADAPTIVE = _flag("FORCE_ADAPTIVE")                 # per-household online correction in the live app
+
+# SIMULATED low-risk yield pot for micro-savings (docs/10-responsible-ai.md). Not a real product: an illustrative annual rate on synthetic money.
+SIM_YIELD_RATE = float(os.getenv("SIM_YIELD_RATE", "0.05"))
