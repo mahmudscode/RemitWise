@@ -54,7 +54,7 @@ A real fintech product needs an operator view. The hackathon guideline's archite
 Everything it shows is either aggregate or synthetic, which keeps the privacy promise to families.
 
 ## Final build additions
-- **Phone verification and password reset (simulated).** 6-digit one-time codes, hashed at rest, 5-minute expiry, 5 attempts, rate-limited. In demo mode (`OTP_DEMO_MODE=true`) the code is returned and shown on screen; no SMS is sent. Reset works by email or verified phone, answers identically for unknown accounts, cannot be used on demo or admin accounts, and signs the user out everywhere.
+- **Email security codes and password reset.** A 6-digit code is emailed to the account address (no phone number is collected). Codes are hashed at rest, expire after 5 minutes, allow 5 attempts and are rate-limited. Email is really sent when `SMTP_HOST` is set (any SMTP server); in demo mode (`OTP_DEMO_MODE=true`) the code is also returned and shown on screen, and with no SMTP and demo mode off the API answers 503. Reset works by email, answers identically for unknown accounts, cannot be used on demo or admin accounts, and signs the user out everywhere.
 - **Self-deletion.** `DELETE /api/me` (type DELETE) removes a family or sender account and, for the last family of a household, its data. Admin and demo accounts are excluded. See `docs/data-retention.md`.
 - **Retention.** Expired sessions, used or expired codes and audit rows older than 12 months are purged on start-up.
 - **Webhook authentication.** The transaction webhook uses an HMAC signature, not a user token (`docs/09-api-contracts.md`).

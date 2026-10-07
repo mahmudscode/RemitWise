@@ -148,14 +148,10 @@ def authenticate(email: str, password: str, client: str) -> User:
 def public_user(u: User) -> dict:
     out = dict(id=u.id, name=u.name, email=u.email, role=u.role, household_id=u.household_id,
                sender_city=u.sender_city, is_demo=bool(u.is_demo),
-               phone=mask_phone(u.phone) if u.phone else None, phone_verified=bool(u.phone_verified))
+               email_verified=bool(u.email_verified or u.is_demo))
     if u.role == "family":
         out["invite_code"] = u.invite_code
     return out
-
-
-def mask_phone(phone: str) -> str:
-    return phone[:5] + "*" * max(len(phone) - 8, 0) + phone[-3:]
 
 
 def mask_email(email: str) -> str:
@@ -186,24 +182,7 @@ def seed_demo_accounts(engine) -> None:
         s.commit()
 
 
-# ---- phone numbers, one-time codes (simulated SMS) and password reset ----
-PHONE_RE = re.compile(r"^\+8801[3-9]\d{8}$")
-
-
-def normalize_phone(phone: str) -> str:
-    """Bangladesh mobile numbers: 01XXXXXXXXX, 8801XXXXXXXXX or +8801XXXXXXXXX -> +8801XXXXXXXXX."""
-    p = re.sub(r"[\s\-()]", "", phone or "")
-    if p.startswith("+"):
-        pass
-    elif p.startswith("880"):
-        p = "+" + p
-    elif p.startswith("0"):
-        p = "+88" + p
-    if not PHONE_RE.match(p):
-        raise HTTPException(422, "Enter a valid Bangladesh mobile number, for example 01712345678.")
-    return p
-
-
+# ---- one-time security codes (emailed) and password reset ----
 _OTP_REQS: dict[str, deque] = defaultdict(deque)
 
 
@@ -258,18 +237,13 @@ def check_otp(user_id: int, purpose: str, code: str) -> None:
         raise HTTPException(400, "That code is invalid or has expired. Request a new one.")
 
 
-def find_for_reset(identifier: str) -> User | None:
-    """Look an account up by email or by a verified phone number. Demo and admin accounts cannot be reset."""
-    ident = (identifier or "").strip()
+def find_for_reset(email: str) -> User | None:
+    """Look an account up by email. Demo and admin accounts cannot be reset this way."""
+    e = (email or "").strip().lower()
+    if not EMAIL_RE.match(e):
+        return None
     with SessionLocal() as s:
-        if "@" in ident:
-            u = s.query(User).filter(User.email == ident.lower()).first()
-        else:
-            try:
-                phone = normalize_phone(ident)
-            except HTTPException:
-                return None
-            u = s.query(User).filter(User.phone == phone, User.phone_verified.is_(True)).first()
+        u = s.query(User).filter(User.email == e).first()
     if u is None or u.is_demo or u.role == "admin" or u.is_active is False:
         return None
     return u

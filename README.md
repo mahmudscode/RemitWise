@@ -88,7 +88,8 @@ Copy `.env.example` to `backend/.env`. Placeholders only; never commit real secr
 | `DEMO_PASSWORD` | backend | Password for the demo accounts | `demo1234` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | backend | Provision your own admin (admins can never self-register). Leave empty to skip | empty |
 | `ALLOWED_ORIGINS` | backend | Comma-separated frontend URLs allowed by CORS in deployment, e.g. `https://your-app.vercel.app` | empty (local only) |
-| `OTP_DEMO_MODE` | backend | Simulated OTP: return the code in the response and show it on screen (no SMS is sent) | `true` |
+| `OTP_DEMO_MODE` | backend | Demo mode: show the security code on screen instead of (or as well as) emailing it. Set `false` in production | `true` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_STARTTLS` | backend | Any SMTP server. When `SMTP_HOST` is set, security codes are really emailed | empty (codes shown on screen) |
 | `WEBHOOK_SECRET` | backend | Shared secret for the signed transaction webhook; empty keeps it disabled | empty |
 | `FORCE_IRREGULAR_MODEL`, `FORCE_TEMPORAL_FEATURES`, `FORCE_ADAPTIVE` | backend (build and run) | Switch the Priority 3 forecasting experiments on in the live model even though the offline rule did not require it | `true` |
 | `WEB_CONCURRENCY`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_LOCK_POOL` | backend | API workers and PostgreSQL pool sizes per worker ([production notes](docs/production-deployment.md)) | 2 workers (`start.sh`), 15 / 10 / 10 |
@@ -177,7 +178,7 @@ The admin opens the admin console automatically. The demo accounts exist only wh
 | Bangla UI | EN / বাংলা toggle (saved in the browser); Home, remittance pop-up, Payments, Plan, Goals, Insights, Sender, sign-in, AI summaries (Bangla template, or Groq when a key is set) | Toggle in the sidebar and sign-in page |
 | Use upay brand colours | Palette sampled from the upay logo in the hackathon guideline (blue `#0d56a5`, yellow `#fcd704`), "for upay" line, WCAG AA contrast checked. The logo image is not copied | Whole app |
 | Faster first load; smooth demo path | "Waking up the server…" screen with retry and an early health ping, skeleton cards on Home, **Guided demo** with 5 steps (also a floating bar over the family app) | Admin → Simulation sandbox → Guided demo |
-| Phone OTP and password reset | Simulated OTP (hashed, 5-minute expiry, 5 attempts, rate-limited) and email/phone password reset that signs out every session. Demo mode shows the code on screen: no SMS is sent | Sign-up → "Verify your phone"; sign-in → "Forgot password?" |
+| Email verification and password reset | A 6-digit security code is **emailed** to the account address (hashed at rest, 5-minute expiry, 5 attempts, rate-limited) to verify the address; password reset uses a code emailed to the account address and signs out every session. Real email needs `SMTP_*` settings; without them demo mode shows the code on screen | Sign-up → "Verify your email"; sign-in → "Forgot password?"; Goals → Your data |
 | Automated micro-savings | Off by default, needs consent, ≤ ৳100/day, only when risk is green and bills covered, "Paused to protect your bills". Saves into the emergency fund or a goal; optionally (separate consent) into a **simulated low-risk yield pot** (synthetic money, illustrative 5% a year, withdraw any time, not a real product, not advice) | Family → Goals → Micro-savings |
 | Show it is not a budgeting app | One-line explainer under Next remittance and a Budgeting app vs RemitWise comparison on the sign-in page | Home; sign-in page |
 | PostgreSQL and LLM path untested | Groq path tested with a mocked HTTP layer (valid output accepted, invented numbers rejected, outage falls back). PostgreSQL test runner added | `./run.sh test`; `./run.sh test-pg` |
@@ -241,6 +242,6 @@ The forecaster was never trained on shocks, so its ranges lose most of their cov
 - The app and tests were verified against **SQLite** and, once, against **PostgreSQL 18.6** on a fresh database (see the PostgreSQL note above). Not run against a hosted or production-scale PostgreSQL.
 - Several Priority 3 experiments did not improve accuracy; they are on by team decision and their measured effect is shown in Admin, not hidden.
 - The Groq call is tested through a mocked HTTP layer; it has **not been called against the real service** (no API key was available).
-- Sign-in is real (salted hashes, hashed tokens, rate limiting, server-side roles) but it is a hackathon implementation: phone OTP and password reset are simulated (no SMS is sent), and tokens live in `localStorage`.
+- Sign-in is real (salted hashes, hashed tokens, rate limiting, server-side roles) but it is a hackathon implementation: email security codes are tested with a fake mail server and are really emailed only when `SMTP_*` is configured (never tried against a real mail provider from here; without SMTP, demo mode shows the code on screen), and tokens live in `localStorage`.
 - Behaviour change under RemitWise is a simulation **assumption** (the compliance level). Real remittance patterns may differ.
 - Money movement is simulated.

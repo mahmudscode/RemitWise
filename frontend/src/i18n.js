@@ -90,14 +90,14 @@ export function tb(text) {
 }
 
 const BN = {
-  // phone verification and password reset
-  'Demo: no SMS is sent.': 'ডেমো: কোনো এসএমএস পাঠানো হয় না।', 'Your code:': 'আপনার কোড:', 'Verify your phone': 'আপনার ফোন যাচাই করুন',
-  '{name}, add your mobile number so you can recover your account and get important alerts.': '{name}, আপনার মোবাইল নম্বর যোগ করুন, যাতে অ্যাকাউন্ট পুনরুদ্ধার করতে পারেন এবং জরুরি বার্তা পান।',
-  'Mobile number': 'মোবাইল নম্বর', 'Send code': 'কোড পাঠান', '6-digit code': '৬ সংখ্যার কোড', 'The code works for 5 minutes and allows 5 tries.': 'কোডটি ৫ মিনিট কাজ করবে এবং ৫ বার চেষ্টা করা যাবে।',
-  'Verify phone': 'ফোন যাচাই করুন', 'Use a different number or resend': 'অন্য নম্বর দিন অথবা আবার পাঠান', 'Reset your password': 'পাসওয়ার্ড রিসেট করুন',
-  'Password changed. Sign in with your new password.': 'পাসওয়ার্ড বদলেছে। নতুন পাসওয়ার্ড দিয়ে সাইন-ইন করুন।', 'Back to sign in': 'সাইন-ইনে ফিরুন',
-  'Enter the email or verified mobile number of your account. We will send a 6-digit code.': 'আপনার অ্যাকাউন্টের ইমেইল বা যাচাই করা মোবাইল নম্বর দিন। আমরা একটি ৬ সংখ্যার কোড পাঠাব।',
-  'Email or mobile number': 'ইমেইল বা মোবাইল নম্বর', 'If an account matches, a code has been sent.': 'কোনো অ্যাকাউন্ট মিললে একটি কোড পাঠানো হয়েছে।',
+  // email security codes and password reset
+  'Demo mode: the code is shown here instead of being emailed.': 'ডেমো মোড: ইমেইল না পাঠিয়ে কোডটি এখানে দেখানো হচ্ছে।', 'Your code:': 'আপনার কোড:', 'Verify your email': 'আপনার ইমেইল যাচাই করুন',
+  '{name}, we will send a 6-digit security code to your email so we know it is really yours and can help you recover your account.': '{name}, আমরা আপনার ইমেইলে একটি ৬ সংখ্যার নিরাপত্তা কোড পাঠাব, যাতে ইমেইলটি সত্যিই আপনার তা জানতে পারি এবং অ্যাকাউন্ট পুনরুদ্ধারে সাহায্য করতে পারি।',
+  'Email me a code': 'আমাকে ইমেইলে কোড পাঠান', 'We sent a code to {to}. Check your inbox (and spam).': '{to} ঠিকানায় একটি কোড পাঠানো হয়েছে। ইনবক্স (এবং স্প্যাম) দেখুন।', 'Code for {to}': '{to}-এর জন্য কোড',
+  '6-digit code': '৬ সংখ্যার কোড', 'The code works for 5 minutes and allows 5 tries.': 'কোডটি ৫ মিনিট কাজ করবে এবং ৫ বার চেষ্টা করা যাবে।', 'Verify email': 'ইমেইল যাচাই করুন', 'Send a new code': 'নতুন কোড পাঠান',
+  'Reset your password': 'পাসওয়ার্ড রিসেট করুন', 'Password changed. Sign in with your new password.': 'পাসওয়ার্ড বদলেছে। নতুন পাসওয়ার্ড দিয়ে সাইন-ইন করুন।', 'Back to sign in': 'সাইন-ইনে ফিরুন',
+  'Enter the email of your account. We will email you a 6-digit security code.': 'আপনার অ্যাকাউন্টের ইমেইল দিন। আমরা আপনাকে একটি ৬ সংখ্যার নিরাপত্তা কোড ইমেইল করব।',
+  'If an account matches, a code has been sent to that email address.': 'কোনো অ্যাকাউন্ট মিললে ওই ইমেইল ঠিকানায় একটি কোড পাঠানো হয়েছে।',
   'New password (at least 8 characters)': 'নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)', 'Changing your password signs you out everywhere.': 'পাসওয়ার্ড বদলালে সব জায়গা থেকে আপনি সাইন-আউট হয়ে যাবেন।',
   'Change password': 'পাসওয়ার্ড বদলান', 'Forgot password?': 'পাসওয়ার্ড ভুলে গেছেন?',
   // micro-savings
@@ -135,6 +135,7 @@ const BN = {
   'I understand the yield pot is a simulation of a low-risk option, not a real product and not advice.': 'আমি বুঝি যে মুনাফা তহবিল একটি কম ঝুঁকির বিকল্পের সিমুলেশন, কোনো আসল পণ্য নয় এবং আর্থিক পরামর্শও নয়।',
   '({e} earned at an illustrative {r}% a year)': '({e} আয়, বছরে উদাহরণস্বরূপ {r}% হারে)', 'Withdraw all to wallet': 'সব ওয়ালেটে ফিরিয়ে আনুন',
   'Synthetic money and an illustrative rate. A real product could lose value. No lock-in, no fee, and it pauses when your bills are at risk.': 'কৃত্রিম টাকা ও উদাহরণস্বরূপ হার। আসল পণ্যে মূল্য কমে যেতে পারে। কোনো আটকে রাখা বা ফি নেই, আর বিল ঝুঁকিতে থাকলে এটি বিরতিতে যায়।',
+  'Verify my email': 'আমার ইমেইল যাচাই করুন', 'Email verified': 'ইমেইল যাচাই করা হয়েছে',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

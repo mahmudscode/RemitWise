@@ -3,13 +3,13 @@
 Only start after Priority 1 is committed and the demo path is verified.
 
 ---
-## Task 7 — Simulated phone OTP and password reset
+## Task 7 — Email security code and password reset (changed from phone to email)
 **Behaviour**
-- Optional phone number on users; existing databases upgraded without data loss.
-- OTP request: 6-digit code, stored hashed, 5-minute expiry, max 5 attempts, rate-limited. Demo mode returns the code on screen with note "Demo: no SMS is sent".
-- OTP verify marks phone verified.
-- Password reset by email or phone: request (OTP) then confirm (code + new password); confirm invalidates all existing sessions.
-- UI: "Verify phone" step after sign-up; "Forgot password?" on sign-in.
+- The code goes to the account's email address, not a phone number (the phone version was replaced). Existing databases are upgraded without data loss.
+- OTP request: 6-digit code, stored hashed, 5-minute expiry, max 5 attempts, rate-limited. The code is emailed when SMTP is configured; demo mode shows it on screen with the note "Demo mode: the code is shown here instead of being emailed".
+- Verify marks the email address verified.
+- Password reset by email: request (OTP) then confirm (code + new password); confirm invalidates all existing sessions.
+- UI: "Verify your email" step after sign-up; "Forgot password?" on sign-in.
 
 **Security notes:** never store plain codes; constant-time compare; generic responses that do not reveal whether an account exists; lockout after attempts exhausted.
 **Tests:** expiry, wrong-code lockout, reset invalidates old token, rate limit.
@@ -17,7 +17,7 @@ Only start after Priority 1 is committed and the demo path is verified.
 
 ---
 ## Task 8 — Consent-based micro-savings
-**Principle:** save, do not invest. No yield products, no financial advice.
+**Principle:** save first. Later change: an optional, separately consented, clearly **simulated** low-risk yield pot (synthetic money, illustrative rate, not advice, not a real product).
 
 **Behaviour**
 - Family setting, **off by default**, requires explicit opt-in.

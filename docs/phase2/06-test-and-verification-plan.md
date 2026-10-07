@@ -12,7 +12,7 @@
 | 1 | `after.precision >= before.precision`; threshold chosen on calibration only; sweep covers whole grid; old keys still present |
 | 3 | Eid surge raises needs ~40% and expires after 10 days; medical adds expense and logs event; reason text readable |
 | 6 | Guided steps 1–5 succeed in order from a reset household |
-| 7 | OTP expiry; lockout after 5 wrong codes; rate limit; reset invalidates old session; no account enumeration |
+| 7 | Email code: expiry; lockout after 5 wrong codes; rate limit; reset invalidates old session; no account enumeration |
 | 8 | Pauses on amber/red; runs on green only; off by default; never breaks bill cover |
 | 10 | Mocked Groq: valid accepted; invented number rejected → template fallback |
 | 11 | Account deletion removes data; demo/admin refused; old sessions expire |
@@ -33,7 +33,7 @@ Also run `pip-audit` and `npm audit` (Task 14) and the load script (Task 13) onc
 - [ ] Admin shows threshold before/after table and chart
 - [ ] EN ↔ বাংলা on every screen of the demo path; no layout break
 - [ ] upay colours applied; text contrast readable
-- [ ] Sign-up → OTP (demo code shown) → sign-in; forgot password works
+- [ ] Sign-up → email code (demo code shown, or in the inbox with SMTP) → sign-in; forgot password works
 - [ ] Micro-savings off by default; pauses under risk
 - [ ] (If built) systemic shock button, monitoring panel, KPI card, 🔊/🎤 work in English and Bangla
 

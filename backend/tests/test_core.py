@@ -678,12 +678,12 @@ def test_guided_demo_is_admin_only_and_gives_clear_errors(client):
     assert client.post(f"/api/households/{hid}/demo/step", json=dict(step=9), headers=H("admin", "")).status_code == 422
 
 
-# ---------- simulated phone OTP and password reset ----------
+# ---------- security codes by email (verification and password reset) ----------
 def _fresh_family(client, tag):
     from app import auth
     auth._OTP_REQS.clear()
-    email = f"otp_{tag}_{abs(hash(tag)) % 10000}@example.com"
-    r = client.post("/api/auth/register", json=dict(role="family", name="Otp Tester", email=email, password="oldpass123"))
+    email = f"code_{tag}_{abs(hash(tag)) % 10000}_{_RUN}@example.com"
+    r = client.post("/api/auth/register", json=dict(role="family", name="Code Tester", email=email, password="oldpass123"))
     if r.status_code == 503:
         pytest.skip("no free demo household")
     assert r.status_code == 200, r.text
@@ -694,26 +694,81 @@ def _bearer(tok):
     return {"Authorization": f"Bearer {tok}"}
 
 
-def test_phone_otp_verify_flow_and_code_is_hashed(client):
+@pytest.fixture
+def smtp(monkeypatch):
+    """A fake SMTP server: records every email so tests can read the code the way a user would."""
+    import smtplib
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout=None):
+            self.host, self.port = host, port
+            if config.SMTP_HOST == "down.example":
+                raise OSError("connection refused")
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def starttls(self): self.tls = True
+        def login(self, u, p): self.creds = (u, p)
+        def send_message(self, m): sent.append(m)
+
+    monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(config, "SMTP_HOST", "smtp.example")
+    monkeypatch.setattr(config, "SMTP_USER", "mailer@example.com")
+    monkeypatch.setattr(config, "SMTP_PASSWORD", "x")
+    monkeypatch.setattr(config, "SMTP_FROM", "RemitWise <no-reply@example.com>")
+    return sent
+
+
+def _code_in(msg):
+    import re
+    return re.search(r"security code is (\d{6})", msg.get_content()).group(1)
+
+
+def test_email_code_verifies_the_address_and_is_hashed_at_rest(client):
     email, tok = _fresh_family(client, "ok")
-    r = client.post("/api/auth/otp/request", json=dict(phone="01712345678"), headers=_bearer(tok))
+    assert client.get("/api/auth/me", headers=_bearer(tok)).json()["user"]["email_verified"] is False
+    r = client.post("/api/auth/otp/request", headers=_bearer(tok))
     assert r.status_code == 200
     body = r.json()
-    assert body["sent"] and len(body["demo_code"]) == 6 and "no SMS" in body["note"]
-    assert client.post("/api/auth/otp/verify", json=dict(code="000000" if body["demo_code"] != "000000" else "111111"), headers=_bearer(tok)).status_code == 400
+    assert body["sent"] and len(body["demo_code"]) == 6 and body["to"].startswith(email[0] + "***@") and "phone" not in json.dumps(body).lower()
+    wrong = "000000" if body["demo_code"] != "000000" else "111111"
+    assert client.post("/api/auth/otp/verify", json=dict(code=wrong), headers=_bearer(tok)).status_code == 400
     ok = client.post("/api/auth/otp/verify", json=dict(code=body["demo_code"]), headers=_bearer(tok))
-    assert ok.status_code == 200 and ok.json()["user"]["phone_verified"] is True
-    assert ok.json()["user"]["phone"].startswith("+8801") and "*" in ok.json()["user"]["phone"]
+    assert ok.status_code == 200 and ok.json()["user"]["email_verified"] is True and "phone" not in ok.json()["user"]
+    assert client.post("/api/auth/otp/request", headers=_bearer(tok)).status_code == 400  # already verified
+    from sqlalchemy import text
     from app import db
-    with db.SessionLocal() as s:  # never stored in plain text
-        stored = [o.code_hash for o in s.query(db.OtpCode).all()]
+    with db.engine.connect() as con:
+        stored = [r[0] for r in con.execute(text("select code_hash from otp_codes"))]
     assert stored and all(body["demo_code"] not in h for h in stored)
 
 
-def test_otp_rejects_bad_phone_and_expired_codes(client):
+def test_the_code_is_really_emailed_when_smtp_is_configured(client, smtp, monkeypatch):
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", False)  # production setting: the code must not appear in the API reply
+    email, tok = _fresh_family(client, "mail")
+    r = client.post("/api/auth/otp/request", headers=_bearer(tok))
+    assert r.status_code == 200 and r.json()["emailed"] is True and "demo_code" not in r.json()
+    assert len(smtp) == 1 and smtp[0]["To"] == email and "security code" in smtp[0]["Subject"].lower()
+    body = smtp[0].get_content()
+    assert "5 minutes" in body and "ignore this email" in body and "PIN" in body
+    assert client.post("/api/auth/otp/verify", json=dict(code=_code_in(smtp[0])), headers=_bearer(tok)).json()["user"]["email_verified"] is True
+
+
+def test_no_email_setup_and_no_demo_mode_is_a_clear_503_and_a_failed_send_is_a_clean_502(client, monkeypatch, smtp):
+    email, tok = _fresh_family(client, "nosmtp")
+    monkeypatch.setattr(config, "SMTP_HOST", "")
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", False)
+    assert client.post("/api/auth/otp/request", headers=_bearer(tok)).status_code == 503
+    monkeypatch.setattr(config, "SMTP_HOST", "down.example")
+    from app import auth
+    auth._OTP_REQS.clear()
+    r = client.post("/api/auth/otp/request", headers=_bearer(tok))
+    assert r.status_code == 502 and "try again" in r.json()["detail"]
+
+
+def test_expired_code_is_rejected(client):
     email, tok = _fresh_family(client, "exp")
-    assert client.post("/api/auth/otp/request", json=dict(phone="12345"), headers=_bearer(tok)).status_code == 422
-    code = client.post("/api/auth/otp/request", json=dict(phone="+8801812345678"), headers=_bearer(tok)).json()["demo_code"]
+    code = client.post("/api/auth/otp/request", headers=_bearer(tok)).json()["demo_code"]
     from app import db
     import datetime as dt
     with db.SessionLocal() as s:
@@ -725,63 +780,58 @@ def test_otp_rejects_bad_phone_and_expired_codes(client):
 
 
 def test_wrong_code_lockout_kills_even_the_right_code(client):
-    from app import config
+    from app import config as cfg
     email, tok = _fresh_family(client, "lock")
-    code = client.post("/api/auth/otp/request", json=dict(phone="01912345678"), headers=_bearer(tok)).json()["demo_code"]
+    code = client.post("/api/auth/otp/request", headers=_bearer(tok)).json()["demo_code"]
     wrong = "000000" if code != "000000" else "111111"
-    for _ in range(config.OTP_MAX_ATTEMPTS):
+    for _ in range(cfg.OTP_MAX_ATTEMPTS):
         assert client.post("/api/auth/otp/verify", json=dict(code=wrong), headers=_bearer(tok)).status_code == 400
-    r = client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok))
-    assert r.status_code == 429  # locked out: the correct code no longer works until a new one is requested
+    assert client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok)).status_code == 429
 
 
-def test_otp_requests_are_rate_limited(client):
-    from app import config
+def test_email_code_requests_are_rate_limited(client):
+    from app import config as cfg
     email, tok = _fresh_family(client, "rate")
-    for _ in range(config.OTP_MAX_REQUESTS):
-        assert client.post("/api/auth/otp/request", json=dict(phone="01612345678"), headers=_bearer(tok)).status_code == 200
-    assert client.post("/api/auth/otp/request", json=dict(phone="01612345678"), headers=_bearer(tok)).status_code == 429
+    for _ in range(cfg.OTP_MAX_REQUESTS):
+        assert client.post("/api/auth/otp/request", headers=_bearer(tok)).status_code == 200
+    assert client.post("/api/auth/otp/request", headers=_bearer(tok)).status_code == 429
 
 
-def test_password_reset_by_email_invalidates_old_sessions(client):
+def test_password_reset_by_email_code_invalidates_old_sessions(client, smtp):
     email, tok = _fresh_family(client, "reset")
     assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 200
-    r = client.post("/api/auth/reset/request", json=dict(identifier=email))
-    assert r.status_code == 200 and r.json()["demo_code"]
-    code = r.json()["demo_code"]
-    bad = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code="abcdef", new_password="newpass456"))
-    assert bad.status_code == 400
-    weak = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code=code, new_password="short"))
-    assert weak.status_code == 422
-    r2 = client.post("/api/auth/reset/request", json=dict(identifier=email))  # the failed attempt used up nothing; fresh code
-    ok = client.post("/api/auth/reset/confirm", json=dict(identifier=email, code=r2.json()["demo_code"], new_password="newpass456"))
+    r = client.post("/api/auth/reset/request", json=dict(email=email))
+    assert r.status_code == 200 and r.json()["sent"] and r.json()["to"][0] == email[0]
+    code = _code_in(smtp[-1])  # read it from the email, as the user would
+    assert code == r.json()["demo_code"]
+    assert client.post("/api/auth/reset/confirm", json=dict(email=email, code="abcdef", new_password="newpass456")).status_code == 400
+    assert client.post("/api/auth/reset/confirm", json=dict(email=email, code=code, new_password="short")).status_code == 422
+    r2 = client.post("/api/auth/reset/request", json=dict(email=email))
+    ok = client.post("/api/auth/reset/confirm", json=dict(email=email, code=_code_in(smtp[-1]), new_password="newpass456"))
     assert ok.status_code == 200, ok.text
     assert client.get("/api/auth/me", headers=_bearer(tok)).status_code == 401  # old token no longer works
     assert client.post("/api/auth/login", json=dict(email=email, password="oldpass123")).status_code == 401
-    assert client.post("/api/auth/login", json=dict(email=email, password="newpass456")).status_code == 200
+    login = client.post("/api/auth/login", json=dict(email=email, password="newpass456"))
+    assert login.status_code == 200 and login.json()["user"]["email_verified"] is True  # the mailbox proved itself
 
 
-def test_password_reset_by_verified_phone_and_no_account_discovery(client):
-    email, tok = _fresh_family(client, "phone")
-    code = client.post("/api/auth/otp/request", json=dict(phone="01512345678"), headers=_bearer(tok)).json()["demo_code"]
-    assert client.post("/api/auth/otp/verify", json=dict(code=code), headers=_bearer(tok)).status_code == 200
-    r = client.post("/api/auth/reset/request", json=dict(identifier="01512345678"))
-    ok = client.post("/api/auth/reset/confirm", json=dict(identifier="01512345678", code=r.json()["demo_code"], new_password="viaphone789"))
-    assert ok.status_code == 200
-    assert client.post("/api/auth/login", json=dict(email=email, password="viaphone789")).status_code == 200
-    # unknown identifiers look exactly like real ones
-    ghost = client.post("/api/auth/reset/request", json=dict(identifier="nobody@example.com"))
-    assert ghost.status_code == 200 and ghost.json()["sent"] and len(ghost.json()["demo_code"]) == 6
-    assert client.post("/api/auth/reset/confirm", json=dict(identifier="nobody@example.com", code=ghost.json()["demo_code"], new_password="whatever123")).status_code == 400
+def test_reset_does_not_reveal_which_accounts_exist(client, smtp):
+    email, tok = _fresh_family(client, "ghost")
+    real = client.post("/api/auth/reset/request", json=dict(email=email)).json()
+    ghost = client.post("/api/auth/reset/request", json=dict(email="nobody-here@example.com")).json()
+    assert set(real) == set(ghost) and ghost["sent"] and len(ghost["demo_code"]) == 6
+    assert len(smtp) == 1  # only the real account got an email
+    bad = client.post("/api/auth/reset/confirm", json=dict(email="nobody-here@example.com", code=ghost["demo_code"], new_password="whatever123"))
+    assert bad.status_code == 400
+    assert client.post("/api/auth/reset/request", json=dict(email="not-an-email")).status_code == 200  # same shape for junk too
 
 
-def test_demo_and_admin_accounts_cannot_be_reset_by_code(client):
-    r = client.post("/api/auth/reset/request", json=dict(identifier="admin@demo.remitwise"))
-    assert r.status_code == 200
-    bad = client.post("/api/auth/reset/confirm", json=dict(identifier="admin@demo.remitwise", code=r.json()["demo_code"], new_password="hijack12345"))
+def test_demo_and_admin_accounts_cannot_be_reset_by_code(client, smtp):
+    r = client.post("/api/auth/reset/request", json=dict(email="admin@demo.remitwise"))
+    assert r.status_code == 200 and not smtp  # nothing is emailed for the admin or demo accounts
+    bad = client.post("/api/auth/reset/confirm", json=dict(email="admin@demo.remitwise", code=r.json()["demo_code"], new_password="hijack12345"))
     assert bad.status_code == 400
     assert client.post("/api/auth/login", json=dict(email="admin@demo.remitwise", password="demo1234")).status_code == 200
-
 
 # ---------- consent-based micro-savings ----------
 def _micro_house(client):

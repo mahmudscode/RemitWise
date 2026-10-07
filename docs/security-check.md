@@ -10,8 +10,8 @@ What was run and what it found. This is a hackathon prototype: these are automat
 | Household isolation | Every household route is called by another family and by a sender; every sender route by the wrong family or sender; all must return 403 |
 | Prompt injection | Injection strings in goal names, auto-pay biller names, sign-up name and city are sanitised and never reach state, bills or summaries |
 | Input validation | Negative, zero, huge and malformed amounts, days and due dates are rejected with 422; balances stay unchanged |
-| Brute force | Sign-in is rate limited per account and client (429); OTP requests, attempts and password-reset requests are limited too |
-| One-time codes | Hashed at rest, 5-minute expiry, 5 attempts, no account discovery on reset |
+| Brute force | Sign-in is rate limited per account and client (429); email-code requests, attempts and password-reset requests are limited too |
+| Email security codes | Hashed at rest, 5-minute expiry, 5 attempts, no account discovery on reset; code never in the API reply when demo mode is off; sending tested with a fake SMTP server |
 | Resilience | Database locked gives a clean 503, unexpected error a clean 500 without internals, a missing model file does not stop the app |
 
 The route checks introspect the real FastAPI routes, so a new endpoint without the right dependency fails the test.

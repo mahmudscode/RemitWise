@@ -27,7 +27,7 @@ Add **"Final-day updates (based on Phase 1 feedback)"** containing:
 ## Q&A prep
 - **Why did recall drop?** Trade chosen to cut false alarms; sweep chart shows the whole curve; lead days quantified.
 - **Is the money impact real?** No. Simulated; compliance assumed; pilot would measure it.
-- **Is OTP real?** Simulated, no SMS sent.
+- **Is the security code real?** It is emailed when SMTP is configured; in demo mode it is shown on screen. Tested with a fake mail server, not a real provider.
 - **Does micro-savings invest?** No. Saves only; off by default; pauses when bills at risk.
 - **Postgres?** State exactly what was and was not run.
 - **Colours?** Palette follows upay brand; logo image not copied.

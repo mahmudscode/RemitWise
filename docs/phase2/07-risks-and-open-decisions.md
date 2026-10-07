@@ -19,7 +19,7 @@
 | Render cold start during judging | Loading screen plus early health ping; open the app before presenting |
 | Guided demo fails from a dirty state | Each step tested from reset; always press Reset first |
 | Brand mimicry concerns | Colours only, a "for upay" text line, no logo image copied |
-| Overclaiming | Keep "Simulated, not measured", "AI estimate", "Demo: no SMS is sent"; never claim untested PostgreSQL |
+| Overclaiming | Keep "Simulated, not measured", "AI estimate", "Demo mode: the code is shown here instead of being emailed"; never claim untested PostgreSQL |
 | Experiments do not beat the baseline (15, 16, 18) | Keep the current model; show the result as honest evidence |
 | Voice depends on device (no Bangla voice, no mic support) | Graceful fallback and message; test on the presentation device |
 | Business KPI figures look like claims | Every assumption editable and labelled "simulated estimate" |

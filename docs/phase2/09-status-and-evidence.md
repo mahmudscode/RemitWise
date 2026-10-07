@@ -10,7 +10,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 4 | Bangla toggle | Done | Sidebar, sign-in, sender view; Bangla summaries |
 | 5 | upay colours | Done | Palette sampled from the logo; AA contrast checked |
 | 6 | Faster load, guided demo | Done | Waking screen, skeletons, 5-step Guided demo (also floating bar) |
-| 7 | OTP and password reset | Done (simulated) | Sign-up, forgot password; tests for expiry, lockout, reset |
+| 7 | Security code and password reset | Done, **by email** (not phone). Really emailed when `SMTP_*` is set; on-screen in demo mode | Sign-up, forgot password, Goals; tests use a fake mail server |
 | 8 | Micro-savings | Done | Goals card; pauses on risk; optional **simulated** yield pot with its own consent |
 | 9 | Not a budgeting app | Done | Home explainer; sign-in comparison |
 | 10 | Groq path and PostgreSQL | Done | Mocked-HTTP Groq tests; **full suite run on PostgreSQL 18.6** |
@@ -30,6 +30,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 ## Honest limits
 - PostgreSQL ran locally (suite and a 4-worker load test), not on a hosted or production-scale database; `docker-compose.prod.yml` and the Render steps are written but were not run from here (`docs/production-deployment.md`).
 - Groq was never called against the real service (no key); only a mocked HTTP layer.
+- The email path was tested with a fake SMTP server only; no real mail provider was used from here.
 - Voice output and microphone input were not tested on a device with a Bangla voice.
 - Security checks are automated self-checks, not a penetration test; the load test is a one-machine smoke test.
 - The yield pot is a simulation: synthetic money, an illustrative rate, no real instrument, no advice. A real one needs a licensed partner.

@@ -4,9 +4,9 @@ RemitWise is a hackathon prototype running on **synthetic data**. This policy de
 
 | Data | Why it is kept | How long | Who can see it |
 |---|---|---|---|
-| Account (name, email, optional phone, password hash) | Sign-in and recovery | Until the person deletes the account | The person; admins see masked emails only |
+| Account (name, email, password hash) | Sign-in and recovery | Until the person deletes the account | The person; admins see masked emails only |
 | Sessions (hash of the login token) | Stay signed in | 30 days, then deleted (also on every start-up) | Nobody (only a hash is stored) |
-| One-time codes (hash) | Phone verification and password reset | 5 minutes; used or expired codes are deleted | Nobody |
+| One-time codes (hash) | Email verification and password reset | 5 minutes; used or expired codes are deleted | Nobody |
 | Household data (plans, goals, consents, decisions, simulated state) | The service itself | Until the family deletes its account; purged with it | The family; senders see only what the family shares |
 | Audit log | Accountability (who did what) | 12 months, then deleted | Admins (demo and system events only) |
 | Demo households and demo accounts | Judging and demos | Reset on request | Public by design |

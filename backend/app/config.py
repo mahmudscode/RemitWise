@@ -63,3 +63,11 @@ DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "15"))
 DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
 DB_LOCK_POOL = int(os.getenv("DB_LOCK_POOL", "10"))  # concurrent household writes per worker
 DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+
+# Security codes are emailed when SMTP_HOST is set (any SMTP server). Without it, OTP_DEMO_MODE shows the code on screen instead.
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", "")
+SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() in ("1", "true", "yes")

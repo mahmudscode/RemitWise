@@ -27,6 +27,14 @@ services:
       - key: WEB_CONCURRENCY
         value: "1"         # free plan has little CPU; raise on a paid plan (see docs/production-deployment.md)
       - key: OTP_DEMO_MODE
-        value: "true"      # simulated one-time codes shown on screen; no SMS is sent
+        value: "true"      # shows the security code on screen; set "false" once SMTP_* is configured
+      - key: SMTP_HOST
+        sync: false        # optional: any SMTP server; makes security codes real emails
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
       - key: WEBHOOK_SECRET
         sync: false        # optional: enables the signed transaction webhook

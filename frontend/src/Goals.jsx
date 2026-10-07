@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { api, fmtDate, taka } from './api'
 import { AI, Bar, Modal, Toggle } from './ui'
 import { t, tb } from './i18n'
+import { VerifyEmail } from './AuthFlows.jsx'
+import { getToken } from './api'
 
 export default function Goals({ hid, state, H, act, tick, person, me }) {
   const [copied, setCopied] = useState(false)
@@ -16,6 +18,8 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const [micro, setMicro] = useState(null)
   const [delText, setDelText] = useState('')
   const [delOpen, setDelOpen] = useState(false)
+  const [verOpen, setVerOpen] = useState(false)
+  const [verified, setVerified] = useState(false)
   const [agree, setAgree] = useState(false)
   const [yAgree, setYAgree] = useState(false)
   const timer = useRef(null)
@@ -147,9 +151,14 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
         <section className="card">
           <h2>{t('Your data')}</h2>
           <p className="small muted" style={{ margin: '6px 0 8px' }}>{t('You can delete your account and its data at any time. Sessions expire after 30 days and the audit log is kept for 12 months.')} <a href="https://github.com/mahmudscode/RemitWise/blob/main/docs/data-retention.md" target="_blank" rel="noreferrer">{t('Read the data-retention policy')}</a></p>
-          <button className="btn redo" onClick={() => setDelOpen(true)}>{t('Delete my account')}</button>
+          <div className="row wrap" style={{ gap: 8 }}>
+            {!(me.email_verified || verified) && <button className="btn" onClick={() => setVerOpen(true)}>{t('Verify my email')}</button>}
+            {(me.email_verified || verified) && <span className="chip green">{t('Email verified')}</span>}
+            <button className="btn redo" onClick={() => setDelOpen(true)}>{t('Delete my account')}</button>
+          </div>
         </section>
       )}
+      {verOpen && <Modal title={t('Verify your email')} onClose={() => setVerOpen(false)}><VerifyEmail token={getToken()} user={me} onDone={(u) => { if (u?.email_verified) setVerified(true); setVerOpen(false) }} /></Modal>}
       {delOpen && <Modal title={t('Delete my account')} onClose={() => setDelOpen(false)}>
         <form className="form" onSubmit={async (e) => { e.preventDefault(); try { await api('/me', { method: 'DELETE', body: { confirm: delText } }); window.dispatchEvent(new Event('rw-unauth')) } catch (ex) { setMsg(ex.message) } }}>
           <p className="small">{t('This permanently removes your account and data. Type DELETE to confirm.')}</p>

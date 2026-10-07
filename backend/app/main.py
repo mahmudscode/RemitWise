@@ -1143,21 +1143,17 @@ def _apply_webhook(ev: "TxEvent") -> dict:
     return dict(ok=True, duplicate=False, event_id=ev.event_id, pending_plan=bool(st["pending"]))
 
 
-# ---------------- phone OTP (simulated) and password reset ----------------
-class PhoneIn(BaseModel):
-    phone: str = Field(max_length=24)
-
-
+# ---------------- email security codes and password reset ----------------
 class CodeIn(BaseModel):
     code: str = Field(max_length=12)
 
 
 class ResetRequestIn(BaseModel):
-    identifier: str = Field(max_length=120)
+    email: str = Field(max_length=120)
 
 
 class ResetConfirmIn(BaseModel):
-    identifier: str = Field(max_length=120)
+    email: str = Field(max_length=120)
     code: str = Field(max_length=12)
     new_password: str = Field(min_length=1, max_length=128)
 
@@ -1169,54 +1165,61 @@ def _me(authorization: str | None) -> db.User:
     return u
 
 
-def _otp_reply(code: str | None) -> dict:
-    out = dict(sent=True, expires_in=config.OTP_TTL_SECONDS)
+def _deliver(email: str, code: str, purpose: str, strict: bool) -> dict:
+    """Email the code if SMTP is configured; otherwise (demo mode) show it on screen. `strict`: report a failed send
+    (account verification). The password-reset flow stays silent about failures so it cannot reveal which accounts exist."""
+    from . import mailer
+    emailed = False
+    if mailer.configured():
+        try:
+            emailed = mailer.send_code(email, code, purpose)
+        except mailer.MailError:
+            if strict:
+                raise HTTPException(502, "We could not send the email right now. Please try again in a moment.")
+    elif not config.OTP_DEMO_MODE:
+        raise HTTPException(503, "Email delivery is not configured on this server.")
+    if not strict:
+        emailed = mailer.configured()  # identical to the reply for unknown addresses, even if the send failed
+    out = dict(sent=True, expires_in=config.OTP_TTL_SECONDS, to=auth.mask_email(email), emailed=emailed)
     if config.OTP_DEMO_MODE:
-        out.update(demo_code=code, note="Demo: no SMS is sent.")
+        out.update(demo_code=code, note="Demo mode: the code is shown here instead of being emailed." if not emailed else "Demo mode: the code is also shown here.")
     return out
 
 
 @app.post("/api/auth/otp/request")
-def otp_request(body: PhoneIn, authorization: str | None = Header(None)):
+def otp_request(authorization: str | None = Header(None)):
+    """Send a 6-digit security code to the signed-in account's email address."""
     u = _me(authorization)
-    phone = auth.normalize_phone(body.phone)
-    with SessionLocal() as s:
-        taken = s.query(db.User).filter(db.User.phone == phone, db.User.phone_verified.is_(True), db.User.id != u.id).first()
-        if taken:
-            raise HTTPException(409, "That phone number cannot be used. Try another number.")
-        row = s.get(db.User, u.id)
-        if row.phone != phone:
-            row.phone, row.phone_verified = phone, False
-        s.commit()
-    code = auth.issue_otp(u.id, "verify_phone")
-    db.audit(u.role, "otp_requested", u.household_id, dict(user_id=u.id, purpose="verify_phone"))
-    return _otp_reply(code)
+    if u.is_demo or u.email_verified:
+        raise HTTPException(400, "This email address is already verified.")
+    code = auth.issue_otp(u.id, "verify_email")
+    db.audit(u.role, "email_code_requested", u.household_id, dict(user_id=u.id))
+    return _deliver(u.email, code, "verify_email", strict=True)
 
 
 @app.post("/api/auth/otp/verify")
 def otp_verify(body: CodeIn, authorization: str | None = Header(None)):
     u = _me(authorization)
-    auth.check_otp(u.id, "verify_phone", body.code)
+    auth.check_otp(u.id, "verify_email", body.code)
     with SessionLocal() as s:
         row = s.get(db.User, u.id)
-        if not row.phone:
-            raise HTTPException(400, "Add a phone number first.")
-        row.phone_verified = True
+        row.email_verified = True
         s.commit()
         s.refresh(row)
-    db.audit(u.role, "phone_verified", u.household_id, dict(user_id=u.id))
+    db.audit(u.role, "email_verified", u.household_id, dict(user_id=u.id))
     return dict(ok=True, user=auth.public_user(row))
 
 
 @app.post("/api/auth/reset/request")
 def reset_request(body: ResetRequestIn, request: Request):
     """Same answer whether or not the account exists, so this cannot be used to discover accounts."""
-    ident = body.identifier.strip().lower()
+    ident = body.email.strip().lower()
     auth.check_rate("reset:" + ident, _client(request))
     auth.record_fail("reset:" + ident, _client(request))  # every request counts toward the sign-in style limit
-    auth.limit_otp_requests("reset-req:" + ident)  # identical limit for real and unknown identifiers
-    u = auth.find_for_reset(body.identifier)
-    code = f"{secrets.randbelow(10**6):06d}"  # unknown identifiers get a lookalike code that never works
+    auth.limit_otp_requests("reset-req:" + ident)  # identical limit for real and unknown addresses
+    u = auth.find_for_reset(ident)
+    code = f"{secrets.randbelow(10**6):06d}"  # unknown addresses get a lookalike code that never works
+    target = ident
     if u:
         try:
             code = auth.issue_otp(u.id, "reset")
@@ -1224,16 +1227,31 @@ def reset_request(body: ResetRequestIn, request: Request):
             if ex.status_code != 429:
                 raise
         db.audit(u.role, "reset_requested", u.household_id, dict(user_id=u.id))
-    out = _otp_reply(code)
-    out["message"] = "If an account matches, a code has been sent."
+    if u:
+        out = _deliver(u.email, code, "reset", strict=False)
+    else:
+        out = _deliver_dummy(target, code)
+    out["message"] = "If an account matches, a code has been sent to that email address."
+    return out
+
+
+def _deliver_dummy(email: str, code: str) -> dict:
+    """What an unknown address gets: the same reply shape and timing class, and nothing is sent."""
+    from . import mailer
+    if not mailer.configured() and not config.OTP_DEMO_MODE:
+        raise HTTPException(503, "Email delivery is not configured on this server.")
+    out = dict(sent=True, expires_in=config.OTP_TTL_SECONDS, to=auth.mask_email(email) if "@" in email else "***", emailed=mailer.configured())
+    if config.OTP_DEMO_MODE:
+        out.update(demo_code=code, note="Demo mode: the code is shown here instead of being emailed.")
     return out
 
 
 @app.post("/api/auth/reset/confirm")
 def reset_confirm(body: ResetConfirmIn, request: Request):
-    key = "reset-confirm:" + body.identifier.strip().lower()
+    ident = body.email.strip().lower()
+    key = "reset-confirm:" + ident
     auth.check_rate(key, _client(request))
-    u = auth.find_for_reset(body.identifier)
+    u = auth.find_for_reset(ident)
     if u is None:
         auth.record_fail(key, _client(request))
         raise HTTPException(400, "That code is invalid or has expired. Request a new one.")
@@ -1244,6 +1262,10 @@ def reset_confirm(body: ResetConfirmIn, request: Request):
         raise
     auth.check_password_policy(body.new_password, u.email)
     auth.set_password(u.id, body.new_password)
+    with SessionLocal() as s:  # receiving the code proves the mailbox is theirs
+        row = s.get(db.User, u.id)
+        row.email_verified = True
+        s.commit()
     auth.clear_fails(key, _client(request))
     db.audit(u.role, "password_reset", u.household_id, dict(user_id=u.id))
     return dict(ok=True, message="Password changed. Sign in with your new password.")

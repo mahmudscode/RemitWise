@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, setToken } from './api'
 import { LangToggle } from './ui'
 import { t } from './i18n'
-import { ForgotPassword, VerifyPhone } from './AuthFlows.jsx'
+import { ForgotPassword, VerifyEmail } from './AuthFlows.jsx'
 
 const ROLES = [
   ['family', 'Family', 'I receive money from a relative abroad'],
@@ -60,7 +60,7 @@ export default function Auth({ onAuthed, lang, changeLang }) {
         </table>
       </aside>
       <main className="authmain">
-        {stage === 'verify' && fresh && <VerifyPhone token={fresh.token} user={fresh.user} onDone={(u) => onAuthed(u || fresh.user)} />}
+        {stage === 'verify' && fresh && <VerifyEmail token={fresh.token} user={fresh.user} onDone={(u) => onAuthed(u || fresh.user)} />}
         {stage === 'forgot' && <ForgotPassword onBack={() => setStage(null)} />}
         {!stage && <div className="card authcard">
           <div className="seg" style={{ marginBottom: 16 }}>
