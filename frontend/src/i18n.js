@@ -100,6 +100,13 @@ const BN = {
   'Email or mobile number': 'ইমেইল বা মোবাইল নম্বর', 'If an account matches, a code has been sent.': 'কোনো অ্যাকাউন্ট মিললে একটি কোড পাঠানো হয়েছে।',
   'New password (at least 8 characters)': 'নতুন পাসওয়ার্ড (কমপক্ষে ৮ অক্ষর)', 'Changing your password signs you out everywhere.': 'পাসওয়ার্ড বদলালে সব জায়গা থেকে আপনি সাইন-আউট হয়ে যাবেন।',
   'Change password': 'পাসওয়ার্ড বদলান', 'Forgot password?': 'পাসওয়ার্ড ভুলে গেছেন?',
+  // micro-savings
+  'Micro-savings': 'মাইক্রো-সঞ্চয়', 'Savings only, no investing': 'শুধু সঞ্চয়, কোনো বিনিয়োগ নয়',
+  'When on, a few taka move to your emergency fund or a goal at the end of each day, only when your bills are covered and no shortfall warning is active. It is off until you switch it on, and you can stop any time.': 'চালু থাকলে প্রতিদিনের শেষে কয়েক টাকা জরুরি তহবিলে বা একটি লক্ষ্যে সরে যায়, তবে শুধু যখন আপনার বিল সংরক্ষিত এবং কোনো ঘাটতির সতর্কতা নেই। আপনি চালু না করা পর্যন্ত এটি বন্ধ থাকে, আর যেকোনো সময় থামাতে পারেন।',
+  'I agree to move small amounts to savings automatically.': 'আমি স্বয়ংক্রিয়ভাবে ছোট অঙ্কের টাকা সঞ্চয়ে সরাতে সম্মত।', 'Micro-savings is on': 'মাইক্রো-সঞ্চয় চালু আছে', 'Micro-savings is off': 'মাইক্রো-সঞ্চয় বন্ধ আছে',
+  'Tick the box to agree first.': 'আগে সম্মতির বাক্সে টিক দিন।', 'How much': 'কত টাকা', 'Save into': 'কোথায় জমবে', 'Round spending up to the next ৳10': 'খরচ পরবর্তী ৳১০-এ পূর্ণ করে নেওয়া',
+  '1% of safe-to-spend surplus': 'নিরাপদে খরচযোগ্য উদ্বৃত্তের ১%', 'Micro-saved this month: {amt}': 'এই মাসে মাইক্রো-সঞ্চয়: {amt}', 'Paused to protect your bills': 'আপনার বিল রক্ষার জন্য বিরতিতে', Saving: 'জমছে',
+  'A few taka a day at most. Daily cash for the next two days is never touched. This is saving, not investing: no yield, no products, no advice.': 'দিনে সর্বোচ্চ কয়েক টাকা। পরের দুই দিনের নগদ কখনও ছোঁয়া হয় না। এটি সঞ্চয়, বিনিয়োগ নয়: কোনো মুনাফা, পণ্য বা আর্থিক পরামর্শ নেই।',
   // navigation and roles
   'Waking up the server…': 'সার্ভার জাগানো হচ্ছে…',
   'The free demo server sleeps when idle. The first load can take up to a minute. We will open the app as soon as it is ready.': 'বিনামূল্যের ডেমো সার্ভার অলস থাকলে ঘুমিয়ে পড়ে। প্রথমবার চালু হতে এক মিনিট পর্যন্ত লাগতে পারে। প্রস্তুত হলেই আমরা অ্যাপ খুলে দেব।',

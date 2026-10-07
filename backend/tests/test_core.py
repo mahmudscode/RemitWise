@@ -780,3 +780,72 @@ def test_demo_and_admin_accounts_cannot_be_reset_by_code(client):
     bad = client.post("/api/auth/reset/confirm", json=dict(identifier="admin@demo.remitwise", code=r.json()["demo_code"], new_password="hijack12345"))
     assert bad.status_code == 400
     assert client.post("/api/auth/login", json=dict(email="admin@demo.remitwise", password="demo1234")).status_code == 200
+
+
+# ---------- consent-based micro-savings ----------
+def _micro_house(client):
+    hid = _hid(client)
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    _step(client, hid, 1)
+    _step(client, hid, 2)
+    return hid
+
+
+def _micro(client, hid):
+    return client.get(f"/api/households/{hid}/micro", headers=H("family", hid)).json()
+
+
+def test_micro_savings_off_by_default_and_needs_consent(client):
+    hid = _micro_house(client)
+    m = _micro(client, hid)
+    assert m["enabled"] is False and m["month_total"] == 0
+    r = client.post(f"/api/households/{hid}/micro", json=dict(enabled=True), headers=H("family", hid))
+    assert r.status_code == 400 and "consent" in r.json()["detail"].lower()
+    client.post(f"/api/households/{hid}/advance", json=dict(days=5), headers=H("family", hid))
+    assert _micro(client, hid)["total"] == 0  # nothing moves while it is off
+
+
+def test_micro_savings_moves_small_amounts_only_when_safe(client):
+    hid = _micro_house(client)
+    on = client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, mode="roundup", target="emergency"),
+                     headers=H("family", hid))
+    assert on.status_code == 200 and on.json()["enabled"]
+    before = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    client.post(f"/api/households/{hid}/advance", json=dict(days=3), headers=H("family", hid))
+    m = _micro(client, hid)
+    after = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert m["paused"] is None and 0 < m["total"] <= 3 * 100  # small, capped daily
+    assert after["buffer"] >= before["buffer"] + m["total"] - 1  # it went into the emergency fund
+
+
+def test_micro_savings_pause_when_warning_is_amber_or_red(client):
+    hid = _micro_house(client)
+    client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True), headers=H("family", hid))
+    _step(client, hid, 4)  # delayed transfer + medical emergency -> warning
+    assert client.get(f"/api/households/{hid}/shortfall", headers=H("family", hid)).json()["severity"] != "green"
+    total_before = _micro(client, hid)["total"]
+    client.post(f"/api/households/{hid}/advance", json=dict(days=2), headers=H("family", hid))
+    m = _micro(client, hid)
+    assert m["paused"] in ("risk", "bills") and m["paused_text"] == "Paused to protect your bills"
+    assert m["total"] == total_before  # not a taka moved while the warning is on
+    log = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()["log"]
+    assert any(e["type"] == "micro_paused" for e in log)
+
+
+def test_micro_savings_target_goal_and_validation(client):
+    hid = _micro_house(client)
+    goals = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()["goals"]
+    ok = client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True, target=goals[0]["id"]), headers=H("family", hid))
+    assert ok.status_code == 200 and ok.json()["target_name"] == goals[0]["name"]
+    assert client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, target="nope"), headers=H("family", hid)).status_code == 400
+    assert client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, mode="invest"), headers=H("family", hid)).status_code == 400
+    off = client.post(f"/api/households/{hid}/micro", json=dict(enabled=False), headers=H("family", hid))
+    assert off.json()["enabled"] is False
+
+
+def test_micro_saved_shows_in_summary_facts(client):
+    hid = _micro_house(client)
+    client.post(f"/api/households/{hid}/micro", json=dict(enabled=True, consent=True), headers=H("family", hid))
+    client.post(f"/api/households/{hid}/advance", json=dict(days=4), headers=H("family", hid))
+    r = client.get(f"/api/households/{hid}/summary?type=monthly", headers=H("family", hid)).json()
+    assert r["source_facts"]["month"]["micro_saved"] == round(_micro(client, hid)["month_total"])

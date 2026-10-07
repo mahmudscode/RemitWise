@@ -20,6 +20,8 @@ BILLED_DAYS_BEFORE = 5  # a variable bill's real amount is known this many days 
 EID_FACTOR = 1.4   # daily needs during the Eid surge scenario (assumption: about +40%)
 EID_DAYS = 10
 MEDICAL_DEFAULT = 8000.0
+MICRO_MODES = {"roundup": "Round spending up to the next ৳10", "percent": "1% of safe-to-spend surplus"}
+MICRO_DAILY_CAP = 100.0   # ৳ per day, a deliberately small amount
 CATS = ("food", "transport", "education", "health", "other")
 
 
@@ -28,6 +30,8 @@ def _d(day: float) -> str:
 
 
 class Engine:
+    thr = config.WARN_THRESHOLD_DEFAULT  # warning threshold; main.py sets the tuned value from evaluation.json
+
     def __init__(self):
         self.h = db.read_sql("SELECT * FROM households").set_index("household_id")
         self.ev = {k: v.sort_values("seq").reset_index(drop=True)
@@ -137,7 +141,8 @@ class Engine:
         return dict(day=start_day - 1, spendable=float(ess[start_day:start_day + 10].sum()), buffer=0.0, vault=0.0,
                     goals={}, debt=0.0, shortfall_days=0, last_arrival_day=int(ev.loc[ev.seq == k - 1, "day"].iloc[0]),
                     last_seq=k - 1, pending=None, adherent=False, overrides={}, extra_income=0.0,
-                    need_mult=1.0, eid_until=-1, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
+                    need_mult=1.0, eid_until=-1, micro_on=False, micro_mode="roundup", micro_target="emergency",
+                    micro_total=0.0, micro_log=[], micro_paused=None, micro_consent_day=None, history=[], log=[], sender_intent=None, retained_amt=0.0, total_amt=0.0,
                     cycle_forecast=None, bill_cfg=cfg, mandates=[], bills={}, bill_override={}, paid_log=[],
                     bills_due=0, bills_on_time=0, late_fees=0.0, fees_avoided=0.0, overbilling_avoided=0.0,
                     anomalies_caught=0, contrib={}, sender_ask=False)
@@ -792,6 +797,8 @@ class Engine:
                 events.append(dict(day=d, type="shortfall"))
             st["history"].append(dict(day=d, date=_d(d), spent=float(need), base=float(base_need),
                                       balance=float(st["spendable"] + st["buffer"] + st["vault"]), short=bool(short)))
+            if st.get("micro_on"):
+                self._micro_save(hid, st, d, float(need), bool(short), events)
         st["history"] = st["history"][-120:]
         st["log"] = (st["log"] + events)[-40:]
         return st
@@ -831,6 +838,85 @@ class Engine:
                                   int((pd.Timestamp(_d(st["day"])).day + 9) % 27) + 1, 9_999_999, False, "01710000000")
         else:
             raise ValueError("unknown scenario")
+        return st
+
+    # ---------- micro-savings: save, never invest ----------
+    def _micro_pause_reason(self, hid: str, st: dict, short_today: bool) -> str | None:
+        """Why micro-savings must not move money right now (None = all clear)."""
+        if short_today:
+            return "risk"
+        sf = self.shortfall(hid, st, self.thr)
+        if not sf.get("available"):
+            return "history"
+        if sf["severity"] != "green":
+            return "risk"
+        if any(c["display_status"] in ("at_risk", "overdue") for c in self.bill_cards(hid, st, 12, 0)):
+            return "bills"
+        return None
+
+    def _micro_amount(self, hid: str, st: dict, need: float) -> float:
+        mean_ess, _, _ = self.usual_needs(hid, st)
+        if st["micro_mode"] == "percent":
+            amt = 0.01 * max(st["spendable"] - 3.0 * mean_ess, 0.0)
+        else:
+            amt = (-need) % 10.0  # round the day's spending up to the next ৳10
+        room = st["spendable"] - 2.0 * mean_ess  # daily cash for the next two days is never touched
+        return float(max(min(amt, MICRO_DAILY_CAP, room), 0.0))
+
+    def _micro_save(self, hid: str, st: dict, d: int, need: float, short_today: bool, events: list):
+        reason = self._micro_pause_reason(hid, st, short_today)
+        if reason:
+            if st.get("micro_paused") != reason:
+                st["micro_paused"] = reason
+                events.append(dict(day=d, type="micro_paused", reason=reason))
+            return
+        if st.get("micro_paused"):
+            st["micro_paused"] = None
+            events.append(dict(day=d, type="micro_resumed"))
+        amt = round(self._micro_amount(hid, st, need), 2)
+        if amt < 0.5:
+            return
+        goals = {g.id: g for g in self.goals_list(hid, st)}
+        tgt = st["micro_target"]
+        if tgt in goals and goals[tgt].current < goals[tgt].target:
+            st["goals"][tgt] = st["goals"].get(tgt, 0.0) + amt
+        else:
+            st["buffer"] += amt
+        st["spendable"] -= amt
+        st["micro_total"] += amt
+        st["micro_log"] = (st["micro_log"] + [dict(day=d, amount=amt)])[-400:]
+
+    def micro_month_total(self, st: dict) -> float:
+        month = _d(st["day"])[:7]
+        return round(sum(x["amount"] for x in st["micro_log"] if _d(x["day"])[:7] == month), 2)
+
+    def micro_view(self, hid: str, st: dict) -> dict:
+        goals = self.goals_list(hid, st)
+        names = {"emergency": "Emergency fund", **{g.id: g.name for g in goals}}
+        paused = st.get("micro_paused") if st.get("micro_on") else None
+        return dict(enabled=bool(st["micro_on"]), mode=st["micro_mode"], target=st["micro_target"], target_name=names.get(st["micro_target"], "Emergency fund"),
+                    month_total=self.micro_month_total(st), total=round(st["micro_total"], 2), paused=paused,
+                    paused_text="Paused to protect your bills" if paused else None, consent_day=st.get("micro_consent_day"),
+                    modes=[dict(id=k, label=v) for k, v in MICRO_MODES.items()],
+                    targets=[dict(id="emergency", name="Emergency fund")] + [dict(id=g.id, name=g.name) for g in goals])
+
+    def set_micro(self, hid: str, st: dict, enabled: bool, mode: str | None, target: str | None, consent: bool) -> dict:
+        if mode is not None:
+            if mode not in MICRO_MODES:
+                raise ValueError("unknown micro-savings mode")
+            st["micro_mode"] = mode
+        if target is not None:
+            if target != "emergency" and target not in {g.id for g in self.goals_list(hid, st)}:
+                raise ValueError("unknown micro-savings target")
+            st["micro_target"] = target
+        if enabled and not st["micro_on"]:
+            if not consent:
+                raise ValueError("Micro-savings needs your consent. Confirm that you agree to switch it on.")
+            st["micro_on"], st["micro_consent_day"], st["micro_paused"] = True, _d(st["day"]), None
+            st["log"].append(dict(day=st["day"], type="micro_on"))
+        elif not enabled and st["micro_on"]:
+            st["micro_on"], st["micro_paused"] = False, None
+            st["log"].append(dict(day=st["day"], type="micro_off"))
         return st
 
     # ---------- guided demo (admin sandbox) ----------

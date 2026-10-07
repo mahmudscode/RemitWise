@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     global ENGINE
     db.init_db()
     ENGINE = Engine()
+    ENGINE.thr = _threshold()
     for hid in ENGINE.demo_ids:
         _ensure_link(hid)
     auth.seed_demo_accounts(ENGINE)
@@ -163,6 +164,35 @@ def _goal_shared(gid: str) -> bool:
 def _date(day: int) -> str:
     import pandas as pd
     return (pd.Timestamp(config.START_DATE) + pd.Timedelta(days=int(day))).strftime("%Y-%m-%d")
+
+
+class MicroIn(BaseModel):
+    enabled: bool
+    mode: str | None = Field(None, max_length=12)
+    target: str | None = Field(None, max_length=40)
+    consent: bool = False
+
+
+@app.get("/api/households/{hid}/micro")
+def get_micro(hid: str, w: Who = Depends(family_or_admin)):
+    _check(hid)
+    e = _eng()
+    return _stamp(e.micro_view(hid, e.get(hid)))
+
+
+@app.post("/api/households/{hid}/micro")
+def set_micro(hid: str, body: MicroIn, w: Who = Depends(family_or_admin)):
+    """Consent-based micro-savings: off by default; the family must switch it on and can switch it off any time."""
+    _check(hid)
+    e = _eng()
+    st = e.get(hid)
+    try:
+        st = e.set_micro(hid, st, body.enabled, body.mode, body.target, body.consent)
+    except ValueError as ex:
+        raise HTTPException(400, str(ex))
+    e.save(hid, st)
+    db.audit(w.role, "micro_savings_on" if body.enabled else "micro_savings_off", hid, dict(mode=st["micro_mode"], target=st["micro_target"]))
+    return _stamp(e.micro_view(hid, st))
 
 
 @app.get("/api/households/{hid}/state")
@@ -606,9 +636,12 @@ def _month_facts(e: Engine, hid: str, st: dict) -> dict:
     suggestion = "keep the bill vault funded first when a transfer arrives."
     if st["shortfall_days"] > 0:
         suggestion = "set a small daily spending limit in the week before the next transfer."
-    return dict(on_time_pct=pct, late_fees_avoided=round(st["fees_avoided"]),
-                savings_built=round(st["buffer"] + sum(st["goals"].values())),
-                suggestion=suggestion)
+    out = dict(on_time_pct=pct, late_fees_avoided=round(st["fees_avoided"]),
+               savings_built=round(st["buffer"] + sum(st["goals"].values())),
+               suggestion=suggestion)
+    if st.get("micro_on") or st.get("micro_total"):
+        out["micro_saved"] = round(e.micro_month_total(st))
+    return out
 
 
 # ---------------- Home / Plan / Payments / Goals / Insights (family app) ----------------

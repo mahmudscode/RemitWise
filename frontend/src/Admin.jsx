@@ -13,6 +13,8 @@ const EV = {
   bill_due_manual: (e) => [`${e.name} due (pay manually)`, 'var(--amber)'], shortfall: () => ['Shortfall day: essentials not fully covered', 'var(--amber)'],
   high_bill_injected: (e) => [`Scenario: unusually high ${e.name} bill injected`, 'var(--red)'], large_expense: (e) => [`Scenario: large expense ${taka(e.amount)}`, 'var(--amber)'],
   eid_surge: (e) => [`Scenario: Eid expense surge until ${fmtDate(e.until)}`, 'var(--amber)'], medical_emergency: (e) => [`Scenario: medical emergency ${taka(e.amount)}`, 'var(--red)'],
+  micro_paused: () => ['Micro-savings paused to protect bills', 'var(--amber)'], micro_resumed: () => ['Micro-savings resumed', 'var(--green)'],
+  micro_on: () => ['Micro-savings switched on by the family', 'var(--primary)'], micro_off: () => ['Micro-savings switched off', 'var(--muted)'],
   goal_used: (e) => [`Goal money used: ${taka(e.amount)}`, 'var(--amber)'],
 }
 const CHECKS = ['Synthetic data only', 'Feature explanations on every forecast', 'Auto-pay only under family mandates', 'Human confirmation above limits', 'LLM explains, never decides', 'Prompt-injection guard', 'Consent-based sharing with sender', 'Admins see aggregates, never a family\'s finances']

@@ -110,8 +110,9 @@ def template_bn(kind: str, facts: dict) -> str:
     if kind == "monthly":
         m = facts["month"]
         idea = BN_SUGGESTION.get(m["suggestion"], m["suggestion"])
+        micro = f" এই মাসে মাইক্রো-সঞ্চয় হয়েছে ৳{taka(m['micro_saved'])}।" if m.get("micro_saved") else ""
         return (f"আপনার {m['on_time_pct']}% বিল সময়মতো পরিশোধ হয়েছে এবং প্রায় ৳{taka(m['late_fees_avoided'])} বিলম্ব ফি এড়ানো গেছে। "
-                f"এ পর্যন্ত ৳{taka(m['savings_built'])} সঞ্চয় হয়েছে। একটি পরামর্শ: {idea}")
+                f"এ পর্যন্ত ৳{taka(m['savings_built'])} সঞ্চয় হয়েছে।{micro} একটি পরামর্শ: {idea}")
     return ""
 
 
@@ -140,8 +141,9 @@ def template(kind: str, facts: dict, lang: str = "en") -> str:
         return "Goal progress — " + "; ".join(parts) + "."
     if kind == "monthly":
         m = facts["month"]
+        micro = f" You micro-saved ৳{taka(m['micro_saved'])} this month." if m.get("micro_saved") else ""
         return (f"{m['on_time_pct']}% of your bills were paid on time and about ৳{taka(m['late_fees_avoided'])} in late fees "
-                f"were avoided. You have saved ৳{taka(m['savings_built'])} so far. One idea: {m['suggestion']}")
+                f"were avoided. You have saved ৳{taka(m['savings_built'])} so far.{micro} One idea: {m['suggestion']}")
     return ""
 
 

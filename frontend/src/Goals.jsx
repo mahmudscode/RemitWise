@@ -13,10 +13,13 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const [sug, setSug] = useState(null)
   const [hint, setHint] = useState(null)
   const [msg, setMsg] = useState('')
+  const [micro, setMicro] = useState(null)
+  const [agree, setAgree] = useState(false)
   const timer = useRef(null)
 
   useEffect(() => {
     api(`/households/${hid}/consent`, H).then(setConsent).catch(() => {})
+    api(`/households/${hid}/micro`, H).then(setMicro).catch(() => setMicro(null))
     api(`/households/${hid}/goals/suggest`, { ...H, method: 'POST', body: { target: 1000, days: 30 } }).then(setHint).catch(() => {})
     // eslint-disable-next-line
   }, [hid, tick])
@@ -31,6 +34,7 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
   const planned = state.goals.reduce((a, g) => a + (g.pace.per_month || 0), 0)
   const shared = state.goals.filter((g) => g.shared).length
   const tone = (g) => (g.pace.on_track === false ? 'amber' : g.pct >= 50 ? 'green' : '')
+  const saveMicro = (patch) => act(async () => setMicro(await api(`/households/${hid}/micro`, { ...H, method: 'POST', body: { enabled: micro.enabled, consent: agree, ...patch } }))).catch(() => {})
   const create = async (e) => {
     e.preventDefault(); setMsg('')
     await act(async () => {
@@ -83,6 +87,27 @@ export default function Goals({ hid, state, H, act, tick, person, me }) {
 
       {hint && hint.suggested_monthly > 0 && <section className="card info small">{t('Thinking of a new goal? Based on your forecast, about {amt} a month is realistic without risking bills.', { amt: taka(hint.suggested_monthly) })}</section>}
       {msg && <p className="small muted">{msg}</p>}
+
+      {micro && (
+        <section className="card">
+          <div className="row between wrap"><h2>{t('Micro-savings')}</h2><span className="ai">{t('Savings only, no investing')}</span></div>
+          <p className="small muted" style={{ margin: '6px 0 10px' }}>{t('When on, a few taka move to your emergency fund or a goal at the end of each day, only when your bills are covered and no shortfall warning is active. It is off until you switch it on, and you can stop any time.')}</p>
+          {!micro.enabled && <label className="check" style={{ marginBottom: 8 }}><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{t('I agree to move small amounts to savings automatically.')}</label>}
+          <Toggle checked={micro.enabled} label={micro.enabled ? t('Micro-savings is on') : t('Micro-savings is off')} onChange={(on) => { if (on && !agree) { setMsg(t('Tick the box to agree first.')); return } setMsg(''); saveMicro({ enabled: on }) }} />
+          <div className="row wrap" style={{ marginTop: 10, gap: 12 }}>
+            <div className="grow"><label className="small muted">{t('How much')}</label>
+              <select value={micro.mode} onChange={(e) => saveMicro({ mode: e.target.value })}>{micro.modes.map((m) => <option key={m.id} value={m.id}>{t(m.label)}</option>)}</select></div>
+            <div className="grow"><label className="small muted">{t('Save into')}</label>
+              <select value={micro.target} onChange={(e) => saveMicro({ target: e.target.value })}>{micro.targets.map((x) => <option key={x.id} value={x.id}>{tb(x.name)}</option>)}</select></div>
+          </div>
+          <div className="row between wrap" style={{ marginTop: 12 }}>
+            <b>{t('Micro-saved this month: {amt}', { amt: taka(micro.month_total) })}</b>
+            {micro.paused && <span className="chip amber">{t('Paused to protect your bills')}</span>}
+            {micro.enabled && !micro.paused && <span className="chip green">{t('Saving')}</span>}
+          </div>
+          <p className="tiny muted" style={{ marginTop: 6 }}>{t('A few taka a day at most. Daily cash for the next two days is never touched. This is saving, not investing: no yield, no products, no advice.')}</p>
+        </section>
+      )}
 
       <section className="card">
         <h2>{t('Sharing with {who}', { who: person?.sender_name })}</h2>
