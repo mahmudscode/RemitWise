@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 load_dotenv(ROOT.parent / ".env")
 
-ARTIFACTS = ROOT / "artifacts"
+ARTIFACTS = Path(os.getenv("RW_ARTIFACTS_DIR") or ROOT / "artifacts")  # override to keep a PostgreSQL test run out of the repo
 ARTIFACTS.mkdir(exist_ok=True)
 
 # PostgreSQL in production/demo (see .env.example); SQLite only as a local fallback.

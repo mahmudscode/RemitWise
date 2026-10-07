@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RemitWise helper.   ./run.sh setup | build | api | web | test
+# RemitWise helper.   ./run.sh setup | build | api | web | test | test-pg
 set -e
 cd "$(dirname "$0")"
 case "$1" in
@@ -11,5 +11,14 @@ case "$1" in
   api)   (cd backend && .venv/bin/uvicorn app.main:app --port 8000) ;;
   web)   (cd frontend && npm run dev) ;;
   test)  (cd backend && .venv/bin/python -m pytest -q) ;;
-  *) echo "usage: ./run.sh setup|build|api|web|test" ;;
+  test-pg)  # the whole test suite against PostgreSQL (needs Docker): builds the data in Postgres first, then runs pytest
+    docker compose --profile test up -d db-test
+    until docker compose --profile test exec -T db-test pg_isready -U remitwise -d remitwise_test >/dev/null 2>&1; do sleep 1; done
+    export DATABASE_URL="postgresql+psycopg://remitwise:remitwise@localhost:5433/remitwise_test"
+    export RW_ARTIFACTS_DIR="$(mktemp -d)"
+    rc=0
+    (cd backend && .venv/bin/python -m app.pipeline && .venv/bin/python -m pytest -q) || rc=$?
+    docker compose --profile test rm -sf db-test >/dev/null 2>&1
+    exit $rc ;;
+  *) echo "usage: ./run.sh setup|build|api|web|test|test-pg" ;;
 esac

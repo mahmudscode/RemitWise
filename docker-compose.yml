@@ -8,5 +8,15 @@ services:
       POSTGRES_DB: remitwise
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+  # Throwaway PostgreSQL for the test suite:  ./run.sh test-pg   (data lives in memory and is removed afterwards)
+  db-test:
+    image: postgres:16
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: remitwise
+      POSTGRES_PASSWORD: remitwise
+      POSTGRES_DB: remitwise_test
+    ports: ["5433:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
 volumes:
   pgdata:
