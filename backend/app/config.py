@@ -57,3 +57,9 @@ FORCE_ADAPTIVE = _flag("FORCE_ADAPTIVE")                 # per-household online 
 
 # SIMULATED low-risk yield pot for micro-savings (docs/10-responsible-ai.md). Not a real product: an illustrative annual rate on synthetic money.
 SIM_YIELD_RATE = float(os.getenv("SIM_YIELD_RATE", "0.05"))
+
+# Database pool, per worker process (PostgreSQL). Keep workers x (pool + overflow) below the server's max_connections.
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "15"))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+DB_LOCK_POOL = int(os.getenv("DB_LOCK_POOL", "10"))  # concurrent household writes per worker
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))

@@ -91,6 +91,8 @@ Copy `.env.example` to `backend/.env`. Placeholders only; never commit real secr
 | `OTP_DEMO_MODE` | backend | Simulated OTP: return the code in the response and show it on screen (no SMS is sent) | `true` |
 | `WEBHOOK_SECRET` | backend | Shared secret for the signed transaction webhook; empty keeps it disabled | empty |
 | `FORCE_IRREGULAR_MODEL`, `FORCE_TEMPORAL_FEATURES`, `FORCE_ADAPTIVE` | backend (build and run) | Switch the Priority 3 forecasting experiments on in the live model even though the offline rule did not require it | `true` |
+| `WEB_CONCURRENCY`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_LOCK_POOL` | backend | API workers and PostgreSQL pool sizes per worker ([production notes](docs/production-deployment.md)) | 2 workers (`start.sh`), 15 / 10 / 10 |
+| `SIM_YIELD_RATE` | backend | Illustrative annual rate of the SIMULATED yield pot | `0.05` |
 | `RW_ARTIFACTS_DIR` | backend | Where `python -m app.pipeline` writes artifacts (used by `./run.sh test-pg`) | `backend/artifacts` |
 | `VITE_API_URL` | frontend (`frontend/.env`) | Backend URL for deployed builds. Leave unset locally; the Vite dev server proxies `/api` | empty |
 
@@ -118,7 +120,7 @@ Sign-in details for judges are in section 11.
 
 **Automated:**
 ```bash
-./run.sh test        # 122 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
+./run.sh test        # 130 pytest tests + `npm --prefix frontend test` (voice logic), about 14 seconds
 ```
 They cover allocator invariants (plans never overspend), summary safety (numbers validated, injection text sanitised), consent and household isolation, bills and the vault, sign-up, sign-in and persistence after a restart, admin endpoints, and a check that the forecaster beats a naive baseline. Tests use a temporary copy of the database, so demo data is untouched.
 
@@ -224,15 +226,15 @@ Compliance is an assumption; a real pilot would measure it.
 
 The forecaster was never trained on shocks, so its ranges lose most of their coverage. Warnings still fire because they read the live balance, but give less notice. A real deployment would add a corridor-level alert and retrain on shock periods.
 
-**Load test** (laptop, one worker, SQLite, client and server on the same machine): 185 requests/s at 50 concurrent users, p50 257 ms, p95 372 ms, 0% errors; 198 requests/s at 10 users, p50 50 ms. This is a smoke test, not a production benchmark ([details](docs/load-test-results.md)).
+**Load tests** ([details and the bugs they found](docs/load-test-results.md)). Round 1 (one worker, SQLite): 185 requests/s at 50 users, 0% errors. Round 2 (**PostgreSQL 18.6, 4 workers**, 300 households): read-only 162 requests/s, 0 errors; mixed 80/20 reads and writes with 300 users 125 requests/s, p95 7.9 s, 1.2% clean 503 "busy" answers; **4,000 signed webhook events (each sent twice at once): exactly the 2,000 unique events applied, to the taka**. Same laptop for client, server and database, so this is a local test, not production scale. The first runs deadlocked the connection pool and exposed several race conditions; all were fixed ([production notes](docs/production-deployment.md)).
 
 **Experiments, reported honestly.** None improved accuracy on this synthetic data: regularity features plus group calibration (irregular-sender timing error 13.73 to 13.72 days: noise), temporal LightGBM (+0.01 days), neural net over recent gaps (+0.24 days, worse coverage), per-household adaptive correction (8.03 to 8.40 days, worse). By team decision the first two are switched on in the live model (measured effect: none, overall error 8.03 days either way) and so is the household correction (which does cost about 0.4 days; set `FORCE_ADAPTIVE=false` to turn it off). The neural net is not used. Admin → Model performance shows each result and "The model serving the app".
 
 **Guided demo.** Admin → Simulation sandbox → *Reset household*, then steps 1 to 5: remittance arrives, accept allocation, unusual bill, warning, resolution.
 
-**PostgreSQL.** The whole pipeline and the full test suite were run against **PostgreSQL 18.6** (a user-space install, no Docker, on a fresh database): the pipeline produced identical numbers and **all 122 tests passed** (re-run after the final changes). That run found two tests that were SQLite-specific (raw `sqlite3` access) and one that assumed an empty database; they were fixed. Reproduce with `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data, runs the suite) or point `DATABASE_URL` at any empty PostgreSQL database and run `python -m app.pipeline` then `pytest`. The suite expects a fresh database each run. Not tested: PostgreSQL at production scale, other versions.
+**PostgreSQL.** The whole pipeline and the full test suite were run against **PostgreSQL 18.6** (a user-space install, no Docker, on a fresh database): the pipeline produced identical numbers and **all 130 tests passed** (re-run after the final changes, including the new concurrency tests). That run found two tests that were SQLite-specific (raw `sqlite3` access) and one that assumed an empty database; they were fixed. Reproduce with `./run.sh test-pg` (needs Docker: starts a throwaway Postgres on port 5433, builds the data, runs the suite) or point `DATABASE_URL` at any empty PostgreSQL database and run `python -m app.pipeline` then `pytest`. The suite expects a fresh database each run. Not tested: PostgreSQL at production scale, other versions.
 
-**Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on real anonymised upay data, real upay payment and identity integration (the webhook adapter is the bridge), production PostgreSQL at scale and formal penetration testing, a real, licensed yield or investment product (the yield pot is a simulation). These are our next phase, a controlled pilot with governed upay data.
+**Out of scope (next phase):** a live pilot with real families and real compliance measurement, retraining on real anonymised upay data, real upay payment and identity integration (the webhook adapter is the bridge), production PostgreSQL at scale (a hosted deployment and testing across machines) and formal penetration testing, a real, licensed yield or investment product (the yield pot is a simulation). These are our next phase, a controlled pilot with governed upay data.
 
 ## Honest status
 

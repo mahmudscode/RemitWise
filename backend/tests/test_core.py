@@ -1471,3 +1471,55 @@ def test_yield_withdrawal_bounds_and_pause_rule(client):
     m = client.get(f"/api/households/{hid}/micro", headers=hdr).json()
     assert m["paused"] and m["total"] == t0  # the yield pot is paused under risk exactly like other micro-savings
     assert client.post(f"/api/households/{hid}/micro/yield/withdraw", json=dict(amount=1e9), headers=hdr).status_code in (400, 422)
+
+
+# ---------- production readiness: locks and start-up ----------
+def test_startup_and_writes_are_serialised_by_locks():
+    import inspect
+    from app import main
+    src = inspect.getsource(main.lifespan)
+    assert 'db.locked("startup")' in src  # several workers start together: set-up must not race
+    assert any(m.cls.__name__ == "WriteLockMiddleware" for m in main.app.user_middleware)
+    assert main._lock_name("POST", "/api/households/H1/advance") == "hh:H1"
+    assert main._lock_name("POST", "/api/sender/S-H1/accept") == "hh:H1"
+    assert main._lock_name("POST", "/api/auth/register") == "register"
+    assert main._lock_name("GET", "/api/households/H1/state") is None
+
+
+def test_concurrent_webhook_events_are_neither_lost_nor_applied_twice(client, monkeypatch):
+    import concurrent.futures as cf, hashlib, hmac, time
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", "race-secret")
+    hid = _micro_house(client)
+    hdr = H("family", hid)
+    net = lambda s: s["spendable"] + s["buffer"] - s["debt"]
+    before = net(client.get(f"/api/households/{hid}/state", headers=hdr).json())
+    events = [dict(event_id=f"race-{i}-{abs(hash(hid)) % 999}-{int(time.time())}", type="cash_out", household_id=hid, amount=10 + i % 5, currency="BDT") for i in range(24)]
+    sends = events + events  # every id twice, all at once
+
+    def post(ev):
+        body = json.dumps(ev).encode()
+        ts = int(time.time())
+        sig = hmac.new(b"race-secret", f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+        return client.post("/api/webhooks/transactions", content=body, headers={"X-RW-Timestamp": str(ts), "X-RW-Signature": sig}).json()
+    with cf.ThreadPoolExecutor(16) as ex:
+        out = list(ex.map(post, sends))
+    assert sum(1 for o in out if o["duplicate"]) == len(events)
+    after = net(client.get(f"/api/households/{hid}/state", headers=hdr).json())
+    assert round(before - after, 2) == sum(e["amount"] for e in events)  # exactly the unique events: no lost update, no double apply
+
+
+def test_bootstrap_does_not_reload_existing_data():
+    from app import bootstrap
+    assert bootstrap.has_data() is True
+    assert bootstrap.run() == "skipped"
+
+
+def test_overload_is_a_clean_503_not_a_crash(client, monkeypatch):
+    from app import main
+    from sqlalchemy.exc import TimeoutError as PoolTimeout
+    hid = _hid(client)
+    monkeypatch.setattr(main.ENGINE, "get", lambda *a, **k: (_ for _ in ()).throw(PoolTimeout("pool", None, None)))
+    r = client.get(f"/api/households/{hid}/state", headers=H("family", hid))
+    assert r.status_code == 503 and r.headers["retry-after"] and "busy" in r.json()["detail"]
+    monkeypatch.setattr(main.ENGINE, "get", lambda *a, **k: (_ for _ in ()).throw(TimeoutError("could not get lock hh:H1")))
+    assert client.get(f"/api/households/{hid}/state", headers=H("family", hid)).status_code == 503

@@ -12,8 +12,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from pydantic import BaseModel, Field
 
 from . import allocator, auth, config, db, explain
@@ -28,16 +30,17 @@ DEFAULT_SCOPE = "goal_progress"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global ENGINE
-    db.init_db()
-    ENGINE = Engine()
-    ENGINE.thr = _threshold()
-    for hid in ENGINE.demo_ids:
-        _ensure_link(hid)
-    auth.seed_demo_accounts(ENGINE)
-    auth.purge_expired()
-    with SessionLocal() as s:  # households claimed by registered families need their consent rows
-        for (hid,) in s.query(db.User.household_id).filter(db.User.role == "family", db.User.household_id.isnot(None)).all():
+    with db.locked("startup"):  # several workers start at once: do the one-time set-up one at a time
+        db.init_db()
+        ENGINE = Engine()
+        ENGINE.thr = _threshold()
+        for hid in ENGINE.demo_ids:
             _ensure_link(hid)
+        auth.seed_demo_accounts(ENGINE)
+        auth.purge_expired()
+        with SessionLocal() as s:  # households claimed by registered families need their consent rows
+            for (hid,) in s.query(db.User.household_id).filter(db.User.role == "family", db.User.household_id.isnot(None)).all():
+                _ensure_link(hid)
     yield
 
 
@@ -50,12 +53,67 @@ async def _db_unavailable(request: Request, exc: OperationalError):
     return JSONResponse(status_code=503, content=dict(detail="The database is busy or unavailable. Please try again in a moment."), headers={"Retry-After": "2"})
 
 
+@app.exception_handler(TimeoutError)
+async def _busy(request: Request, exc: TimeoutError):
+    """Could not get a household lock or a database connection in time: overload, so say "try again", not "crashed"."""
+    return JSONResponse(status_code=503, content=dict(detail="The service is busy. Please try again in a moment."), headers={"Retry-After": "2"})
+
+
+@app.exception_handler(PoolTimeout)
+async def _pool_busy(request: Request, exc: PoolTimeout):
+    return JSONResponse(status_code=503, content=dict(detail="The service is busy. Please try again in a moment."), headers={"Retry-After": "2"})
+
+
 @app.exception_handler(Exception)
 async def _unexpected(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=dict(detail="Something went wrong on our side. Please try again."))
 # Extra allowed origins (e.g. your Vercel URL) via ALLOWED_ORIGINS="https://a.vercel.app,https://b.com"
 _ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
     o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+import re as _re
+
+_LOCK_PATHS = (_re.compile(r"^/api/households/([^/]+)/"), _re.compile(r"^/api/sender/S-([^/]+)/"))
+
+
+def _lock_name(method: str, path: str) -> str | None:
+    """Writes to one household are serialised across workers; sign-up is serialised so two families never get the same household."""
+    if method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return None
+    if path == "/api/auth/register":
+        return "register"
+    for rx in _LOCK_PATHS:
+        m = rx.match(path)
+        if m:
+            return "hh:" + m.group(1)
+    return None
+
+
+class WriteLockMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        name = _lock_name(scope["method"], scope["path"]) if scope["type"] == "http" else None
+        if name is None:
+            return await self.app(scope, receive, send)
+        import asyncio
+        import time
+        end = time.monotonic() + 25.0
+        handle = None
+        while handle is None:  # poll instead of blocking a worker thread and a database connection on the lock
+            handle = await run_in_threadpool(db.try_acquire_lock, name)
+            if handle is None:
+                if time.monotonic() > end:
+                    return await JSONResponse(status_code=503, content=dict(detail="This household is busy. Please try again in a moment."),
+                                              headers={"Retry-After": "1"})(scope, receive, send)
+                await asyncio.sleep(0.02)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            await run_in_threadpool(db.release_lock, handle)
+
+
+app.add_middleware(WriteLockMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
@@ -1059,19 +1117,28 @@ async def transaction_webhook(request: Request, x_rw_signature: str | None = Hea
     except Exception:
         raise HTTPException(400, "Invalid event payload.")
     _check(ev.household_id)
+    return await run_in_threadpool(_apply_webhook, ev)
+
+
+def _apply_webhook(ev: "TxEvent") -> dict:
+    from sqlalchemy.exc import IntegrityError
     e = _eng()
-    with SessionLocal() as s:
-        if s.get(db.WebhookEvent, ev.event_id):
-            return dict(ok=True, duplicate=True, event_id=ev.event_id)
-    st = e.get(ev.household_id)
-    try:
-        st = e.apply_external(ev.household_id, st, ev.type, ev.amount, ev.bill_name)
-    except ValueError as ex:
-        raise HTTPException(409, str(ex))
-    e.save(ev.household_id, st)
-    with SessionLocal() as s:
-        s.add(db.WebhookEvent(event_id=ev.event_id, type=ev.type, household_id=ev.household_id))
-        s.commit()
+    with db.locked("hh:" + ev.household_id):  # same lock as every other write to this household
+        with SessionLocal() as s:  # claim the event id first: the primary key makes "applied once" safe under concurrency
+            s.add(db.WebhookEvent(event_id=ev.event_id, type=ev.type, household_id=ev.household_id))
+            try:
+                s.commit()
+            except IntegrityError:
+                return dict(ok=True, duplicate=True, event_id=ev.event_id)
+        st = e.get(ev.household_id)
+        try:
+            st = e.apply_external(ev.household_id, st, ev.type, ev.amount, ev.bill_name)
+        except ValueError as ex:
+            with SessionLocal() as s:  # a rejected event may be retried after it is fixed
+                s.query(db.WebhookEvent).filter(db.WebhookEvent.event_id == ev.event_id).delete()
+                s.commit()
+            raise HTTPException(409, str(ex))
+        e.save(ev.household_id, st)
     db.audit("webhook", "tx_" + ev.type, ev.household_id, dict(event_id=ev.event_id, amount=ev.amount))
     return dict(ok=True, duplicate=False, event_id=ev.event_id, pending_plan=bool(st["pending"]))
 

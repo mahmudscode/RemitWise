@@ -16,7 +16,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 10 | Groq path and PostgreSQL | Done | Mocked-HTTP Groq tests; **full suite run on PostgreSQL 18.6** |
 | 11 | Data retention | Done | `docs/data-retention.md`, `DELETE /api/me`, purge on start-up |
 | 12 | Systemic shock | Done | Sandbox button; stress table (coverage 83% to 26%) |
-| 13 | Load test | Done | `docs/load-test-results.md` (about 185 req/s, 50 users, 0% errors, laptop) |
+| 13 | Load test | Done, two rounds | `docs/load-test-results.md`: 1 worker/SQLite, then **4 workers on PostgreSQL, 300 households, mixed writes, 4,000 concurrent webhook events applied exactly once**; fixed races found on the way |
 | 14 | Tests and security checks | Done | 122 tests, 73% coverage, `docs/security-check.md`, audits clean |
 | 15 | Irregular senders | Built; no accuracy gain; **on by team decision** | Admin experiment card; `live_model` |
 | 16 | Sequence model | Built; neither variant won; temporal features **on by team decision**, neural net not used | Admin experiment card |
@@ -28,7 +28,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 22 | README | Done | "Final-day updates" section |
 
 ## Honest limits
-- PostgreSQL was run once on a fresh local database, not on a hosted or production-scale one.
+- PostgreSQL ran locally (suite and a 4-worker load test), not on a hosted or production-scale database; `docker-compose.prod.yml` and the Render steps are written but were not run from here (`docs/production-deployment.md`).
 - Groq was never called against the real service (no key); only a mocked HTTP layer.
 - Voice output and microphone input were not tested on a device with a Bangla voice.
 - Security checks are automated self-checks, not a penetration test; the load test is a one-machine smoke test.

@@ -11,11 +11,100 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from . import config
 
 _kw = {"future": True}
-if config.DATABASE_URL.startswith("sqlite"):
+IS_SQLITE = config.DATABASE_URL.startswith("sqlite")
+if IS_SQLITE:
     _kw["connect_args"] = {"check_same_thread": False}
+else:  # production-style pool: reuse connections, detect dead ones, bounded per worker (see docs/production-deployment.md)
+    _kw.update(pool_size=config.DB_POOL_SIZE, max_overflow=config.DB_MAX_OVERFLOW, pool_pre_ping=True,
+               pool_recycle=1800, pool_timeout=config.DB_POOL_TIMEOUT)
 engine = create_engine(config.DATABASE_URL, **_kw)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
+
+
+# ---- cross-worker locks ----
+# Household state is read, changed and saved as a whole, so two requests for the same household must not interleave
+# (lost updates) and two sign-ups must not claim the same free household. PostgreSQL advisory locks work across all
+# workers and containers; SQLite (single machine) falls back to in-process locks.
+import threading
+import zlib
+
+_LOCAL: dict[str, threading.Lock] = {}
+_LOCAL_GUARD = threading.Lock()
+
+
+def _key(name: str) -> int:
+    return zlib.crc32(name.encode())
+
+
+# Locks use their own small connection pool so waiting for a lock can never starve the main pool (that deadlocked under load).
+_lock_engine = None
+
+
+def _lock_pool():
+    global _lock_engine
+    if _lock_engine is None:
+        _lock_engine = create_engine(config.DATABASE_URL, future=True, pool_size=config.DB_LOCK_POOL, max_overflow=0,
+                                     pool_pre_ping=True, pool_timeout=0.2)
+    return _lock_engine
+
+
+def try_acquire_lock(name: str):
+    """Non-blocking: returns a handle, or None if somebody else holds the lock (callers poll; nothing sits blocked on a connection)."""
+    if IS_SQLITE:
+        with _LOCAL_GUARD:
+            lock = _LOCAL.setdefault(name, threading.Lock())
+        return ("local", lock) if lock.acquire(blocking=False) else None
+    from sqlalchemy.exc import TimeoutError as PoolTimeout
+    try:
+        conn = _lock_pool().connect().execution_options(isolation_level="AUTOCOMMIT")
+    except PoolTimeout:  # every lock connection of this worker is in use: back-pressure, the caller polls again
+        return None
+    try:
+        got = conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": _key(name)}).scalar()
+    except Exception:
+        conn.close()
+        raise
+    if not got:
+        conn.close()
+        return None
+    return ("pg", conn, name)
+
+
+def acquire_lock(name: str, timeout: float = 30.0):
+    """Blocking wrapper around try_acquire_lock (used by synchronous code such as start-up)."""
+    import time
+    end = time.monotonic() + timeout
+    while True:
+        h = try_acquire_lock(name)
+        if h:
+            return h
+        if time.monotonic() > end:
+            raise TimeoutError(f"could not get lock {name}")
+        time.sleep(0.02)
+
+
+def release_lock(handle) -> None:
+    if handle[0] == "local":
+        handle[1].release()
+        return
+    _, conn, name = handle
+    try:
+        conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _key(name)})
+    finally:
+        conn.close()
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def locked(name: str):
+    h = acquire_lock(name)
+    try:
+        yield
+    finally:
+        release_lock(h)
 
 
 def now():

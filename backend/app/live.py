@@ -123,11 +123,12 @@ class Engine:
     def eligible(self, taken: set) -> list:
         """Unclaimed synthetic households a new family account can be given (test split first, enough history)."""
         out = []
-        for hid in self.h[self.h.split == "test"].index:
-            if hid in self.demo_ids or hid in taken:
-                continue
-            if len(self.ev.get(hid, [])) >= 18 and len(self.fc.get(hid, {})) >= 8:
-                out.append(hid)
+        for split in ("test", "cal", "train"):  # held-out households first; the rest only once those are used up (load tests)
+            for hid in self.h[self.h.split == split].index:
+                if hid in self.demo_ids or hid in taken:
+                    continue
+                if len(self.ev.get(hid, [])) >= 18 and len(self.fc.get(hid, {})) >= 8:
+                    out.append(hid)
         return out
 
     def usual_range(self, bid: str, due: int):
@@ -191,24 +192,40 @@ class Engine:
 
     def get(self, hid: str) -> dict:
         self.ensure(hid)
-        with SessionLocal() as s:
-            row = s.get(DemoState, hid)
-            if row:
+        row = self._row(hid)
+        if row is not None:
+            return self._upgrade(hid, copy.deepcopy(row.state))
+        with db.locked("init:" + hid):  # first visit: two requests at once must not both create the household (duplicate goals, key clash)
+            row = self._row(hid)
+            if row is not None:
                 return self._upgrade(hid, copy.deepcopy(row.state))
-        st = self._fresh(hid)
-        self.save(hid, st)
-        self._seed_goals(hid)
-        return st
+            st = self._fresh(hid)
+            self.save(hid, st)
+            self._seed_goals(hid)
+            return st
+
+    @staticmethod
+    def _row(hid: str):
+        with SessionLocal() as s:
+            return s.get(DemoState, hid)
 
     def save(self, hid: str, st: dict):
-        with SessionLocal() as s:
-            row = s.get(DemoState, hid)
-            if row:
-                row.state = st
-                row.updated_at = db.now()
-            else:
-                s.add(DemoState(household_id=hid, state=st))
-            s.commit()
+        from sqlalchemy.exc import IntegrityError
+        for attempt in (0, 1):
+            with SessionLocal() as s:
+                row = s.get(DemoState, hid)
+                if row:
+                    row.state = st
+                    row.updated_at = db.now()
+                else:
+                    s.add(DemoState(household_id=hid, state=st))
+                try:
+                    s.commit()
+                    return
+                except IntegrityError:  # another request created the row between our read and write: update it instead
+                    s.rollback()
+                    if attempt:
+                        raise
 
     def reset(self, hid: str) -> dict:
         with SessionLocal() as s:

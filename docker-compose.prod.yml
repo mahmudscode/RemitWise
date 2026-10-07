@@ -1,0 +1,44 @@
+# Production-style stack: PostgreSQL + the API with several workers.   docker compose -f docker-compose.prod.yml up --build
+# Set real secrets in a .env file next to this file (never commit it). The first start loads the synthetic data (about a minute).
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: remitwise
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: remitwise
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remitwise -d remitwise"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql+psycopg://remitwise:${POSTGRES_PASSWORD}@db:5432/remitwise
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-5}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      SEED_DEMO_ACCOUNTS: ${SEED_DEMO_ACCOUNTS:-false}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      OTP_DEMO_MODE: ${OTP_DEMO_MODE:-true}
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+volumes:
+  pgdata:

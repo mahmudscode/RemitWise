@@ -24,6 +24,8 @@ services:
         sync: false        # password for the demo accounts
       - key: DATABASE_URL
         sync: false        # PostgreSQL URL: keeps accounts and data across redeploys
+      - key: WEB_CONCURRENCY
+        value: "1"         # free plan has little CPU; raise on a paid plan (see docs/production-deployment.md)
       - key: OTP_DEMO_MODE
         value: "true"      # simulated one-time codes shown on screen; no SMS is sent
       - key: WEBHOOK_SECRET
