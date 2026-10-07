@@ -815,21 +815,34 @@ def test_password_reset_by_email_code_invalidates_old_sessions(client, smtp):
     assert login.status_code == 200 and login.json()["user"]["email_verified"] is True  # the mailbox proved itself
 
 
-def test_reset_does_not_reveal_which_accounts_exist(client, smtp):
+def test_reset_does_not_reveal_which_accounts_exist(client, smtp, monkeypatch):
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", False)  # production setting: identical replies for real and unknown addresses
     email, tok = _fresh_family(client, "ghost")
     real = client.post("/api/auth/reset/request", json=dict(email=email)).json()
     ghost = client.post("/api/auth/reset/request", json=dict(email="nobody-here@example.com")).json()
-    assert set(real) == set(ghost) and ghost["sent"] and len(ghost["demo_code"]) == 6
+    assert set(real) == set(ghost) and ghost["sent"] and "demo_code" not in ghost
     assert len(smtp) == 1  # only the real account got an email
-    bad = client.post("/api/auth/reset/confirm", json=dict(email="nobody-here@example.com", code=ghost["demo_code"], new_password="whatever123"))
+    bad = client.post("/api/auth/reset/confirm", json=dict(email="nobody-here@example.com", code="123456", new_password="whatever123"))
     assert bad.status_code == 400
     assert client.post("/api/auth/reset/request", json=dict(email="not-an-email")).status_code == 200  # same shape for junk too
 
 
-def test_demo_and_admin_accounts_cannot_be_reset_by_code(client, smtp):
+def test_demo_mode_tells_the_truth_instead_of_showing_a_code_that_cannot_work(client, monkeypatch):
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", True)
+    unknown = client.post("/api/auth/reset/request", json=dict(email="nobody-here@example.com"))
+    assert unknown.status_code == 404 and "No account was found" in unknown.json()["detail"]
+    protected = client.post("/api/auth/reset/request", json=dict(email="admin@demo.remitwise"))
+    assert protected.status_code == 400 and "cannot be reset" in protected.json()["detail"]
+    email, tok = _fresh_family(client, "truth")
+    ok = client.post("/api/auth/reset/request", json=dict(email=email))
+    assert ok.status_code == 200 and len(ok.json()["demo_code"]) == 6
+
+
+def test_demo_and_admin_accounts_cannot_be_reset_by_code(client, smtp, monkeypatch):
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", False)
     r = client.post("/api/auth/reset/request", json=dict(email="admin@demo.remitwise"))
     assert r.status_code == 200 and not smtp  # nothing is emailed for the admin or demo accounts
-    bad = client.post("/api/auth/reset/confirm", json=dict(email="admin@demo.remitwise", code=r.json()["demo_code"], new_password="hijack12345"))
+    bad = client.post("/api/auth/reset/confirm", json=dict(email="admin@demo.remitwise", code="123456", new_password="hijack12345"))
     assert bad.status_code == 400
     assert client.post("/api/auth/login", json=dict(email="admin@demo.remitwise", password="demo1234")).status_code == 200
 
@@ -1583,5 +1596,6 @@ def test_reset_without_email_setup_is_a_clear_503_and_never_locks_the_user_out(c
     for _ in range(auth.MAX_FAILS + 4):  # many retries, as a user who gets no email would make
         r = client.post("/api/auth/reset/request", json=dict(email="someone@example.com"))
         assert r.status_code == 503 and "not configured" in r.json()["detail"]
-    monkeypatch.setattr(config, "OTP_DEMO_MODE", True)  # once email works the same address is not blocked
-    assert client.post("/api/auth/reset/request", json=dict(email="someone@example.com")).status_code == 200
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", True)  # once email works the same address is not blocked by the earlier tries
+    after = client.post("/api/auth/reset/request", json=dict(email="someone@example.com"))
+    assert after.status_code == 404 and "No account" in after.json()["detail"]  # (an honest answer in demo mode, not a rate limit)

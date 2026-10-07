@@ -1221,6 +1221,13 @@ def reset_request(body: ResetRequestIn, request: Request):
     auth.record_fail("reset:" + ident, _client(request))  # every request counts toward the limit
     auth.limit_otp_requests("reset-req:" + ident)  # identical limit for real and unknown addresses
     u = auth.find_for_reset(ident)
+    if u is None and config.OTP_DEMO_MODE:
+        # Demo mode only: be honest instead of showing a code that can never work. (Production mode keeps the identical reply.)
+        with SessionLocal() as s:
+            row = s.query(db.User).filter(db.User.email == ident).first()
+        if row is not None:
+            raise HTTPException(400, "The demo and admin accounts cannot be reset this way. Use a family or sender account you created yourself.")
+        raise HTTPException(404, "No account was found for this email. Create an account first, then use the same email here.")
     code = f"{secrets.randbelow(10**6):06d}"  # unknown addresses get a lookalike code that never works
     target = ident
     if u:
