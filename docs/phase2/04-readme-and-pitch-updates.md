@@ -1,9 +1,10 @@
 # 04 — README and Pitch Updates
 
-## Task 11 — README section (do last)
+## Task 22 — README section (do last)
 Add **"Final-day updates (based on Phase 1 feedback)"** containing:
 - Table: judge comment → what was built → where to see it (screen / button).
 - Warning threshold before/after numbers (from `evaluation.json`, copied after the final build).
+- Stress-test (Task 12) and load-test (Task 13) results, coverage and security-check summary (Task 14), if done.
 - 60/80/100% compliance table with "simulated, not measured" wording.
 - PostgreSQL run command (and whether it was executed).
 - Out-of-scope list (see doc 07).
@@ -19,6 +20,8 @@ Add **"Final-day updates (based on Phase 1 feedback)"** containing:
 | AI/ML | Show before/after threshold chart; state recall cost openly |
 | Impact | Show 60/80/100% table; say "simulated, not measured" out loud |
 | Differentiator | Landing comparison: budgeting app vs RemitWise |
+| Responsible AI | Retention policy, account deletion, monitoring panel, security checks (if built) |
+| Scalability | Webhook adapter and load-test numbers (if built) |
 | Close | "These are our next phase, a controlled pilot with governed upay data." |
 
 ## Q&A prep

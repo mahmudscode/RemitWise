@@ -1,6 +1,6 @@
 # Phase 2 (On-Site Final) — Planning Docs
 
-Planning only. No code in these files. They turn the Phase 1 judge feedback (score 74.7/100) into an executable plan for the on-site final. Source: `REMITWISE_FINAL_DAY_UPDATES (2).md`.
+Planning only. No code in these files. They turn the Phase 1 judge feedback (score 74.7/100) into an executable plan for the on-site final. Source: `REMITWISE_FINAL_DAY_UPDATES (2).md` (updated: now 22 tasks in three priority tiers).
 
 Team: Matrix Miners — MD Mahmudur Rahman Supto, Sk Abu Sayeed, Shoukhinuzzaman Aditto.
 
@@ -11,7 +11,8 @@ Team: Matrix Miners — MD Mahmudur Rahman Supto, Sk Abu Sayeed, Shoukhinuzzaman
 | 01-judge-feedback-map.md | Each judge comment → task → criterion it lifts |
 | 02-priority1-task-specs.md | Tasks 1–6: scope, where, acceptance, tests, commit message |
 | 03-priority2-task-specs.md | Tasks 7–10: security, micro-savings, positioning, LLM/Postgres tests |
-| 04-readme-and-pitch-updates.md | Task 11 (README) and pitch/demo changes |
+| 04-readme-and-pitch-updates.md | Task 22 (README) and pitch/demo changes |
+| 08-priority3-task-specs.md | Tasks 11–21: retention, shock test, load test, security checks, forecasting experiments, monitoring, voice, KPIs, webhook |
 | 05-execution-plan.md | Order, time boxes, owners, commit discipline, stop rules |
 | 06-test-and-verification-plan.md | Tests to add, pre-commit checks, demo smoke checklist |
 | 07-risks-and-open-decisions.md | Risks, open items the team must confirm, out of scope |
