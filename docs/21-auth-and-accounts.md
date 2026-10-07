@@ -52,3 +52,9 @@ A real fintech product needs an operator view. The hackathon guideline's archite
 - **Simulation sandbox:** trigger a remittance, delay a transfer, inject an unusual bill or a new EMI on synthetic households, to see how the product reacts without risking a real family.
 - **Audit & data:** event log for demo households and the data card of assumptions.
 Everything it shows is either aggregate or synthetic, which keeps the privacy promise to families.
+
+## Final build additions
+- **Phone verification and password reset (simulated).** 6-digit one-time codes, hashed at rest, 5-minute expiry, 5 attempts, rate-limited. In demo mode (`OTP_DEMO_MODE=true`) the code is returned and shown on screen; no SMS is sent. Reset works by email or verified phone, answers identically for unknown accounts, cannot be used on demo or admin accounts, and signs the user out everywhere.
+- **Self-deletion.** `DELETE /api/me` (type DELETE) removes a family or sender account and, for the last family of a household, its data. Admin and demo accounts are excluded. See `docs/data-retention.md`.
+- **Retention.** Expired sessions, used or expired codes and audit rows older than 12 months are purged on start-up.
+- **Webhook authentication.** The transaction webhook uses an HMAC signature, not a user token (`docs/09-api-contracts.md`).

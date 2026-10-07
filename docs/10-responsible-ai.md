@@ -44,3 +44,12 @@ Maps to the guideline's minimums (worth 5% of score, but also a trust story for 
 - Real remittance patterns may differ; synthetic calibration is not evidence.
 - Language quality (Bangla) needs native review.
 - Cultural/family dynamics vary; tool must not replace family decision-making.
+
+## Final build additions
+- **Micro-savings** is off by default, needs explicit consent, moves at most ৳100 a day, never touches the next two days of cash, and pauses automatically when a warning is amber/red or bills are at risk ("Paused to protect your bills"). It saves; it never invests or advises.
+- **Monitoring.** Admin → Monitoring tracks rolling error and coverage, per-group flags and input drift. In production this would alert the model owner.
+- **Stress test.** The model is not robust to systemic shocks (coverage falls to 26%); this is shown, not hidden.
+- **Experiments are labelled.** Where an experiment is switched on without improving accuracy, the Admin screen says so.
+- **Data retention and deletion.** `docs/data-retention.md`.
+- **Voice** uses the device's speech APIs; a fixed set of questions is answered from numbers already on screen. No free-form LLM decisions.
+- **Security checks** are basic and automated (`docs/security-check.md`); there has been no independent penetration test.

@@ -49,3 +49,9 @@ Data prep → features → model inference → business rules/allocator → expl
 - Fixed train/validation/**clean test** split by household (no leakage across time within a household).
 - Version models and data seeds; log predictions and reasons.
 - Document assumptions and limitations in the app.
+
+## Final build additions
+- **Warning.** Hybrid: warn when the Monte-Carlo shortfall probability reaches the calibrated threshold or the simple rule (money covers fewer days than the next transfer needs) fires. The threshold is chosen on calibration households only, targeting precision of at least 0.85.
+- **Forecaster.** LightGBM quantile models with conformal calibration, plus (on by team decision) sender-regularity features, group-wise calibration by regularity inferred from each sender's own history, and lag/rolling features. Measured effect on this data: none. A per-household online correction exists and is on by team decision; it makes timing error worse here.
+- **Grounded summaries** also in Bangla (template, or Groq with the same number validation).
+- **Stress and drift.** A systemic-shock stress test and a monitoring panel (rolling error, per-group coverage, PSI).

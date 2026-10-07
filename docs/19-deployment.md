@@ -30,3 +30,6 @@ Open `https://<backend>/api/health` and expect `{"ok":true,...}`. Then open the 
 | Demo state resets | SQLite on an ephemeral disk; set `DATABASE_URL` to Postgres for persistence |
 
 *Not yet tested on a real host: this project's dev machine has no Docker or PostgreSQL.*
+
+## Final build: new settings
+`OTP_DEMO_MODE` (simulated codes shown on screen), `WEBHOOK_SECRET` (enables the signed webhook; empty keeps it off), `FORCE_IRREGULAR_MODEL`, `FORCE_TEMPORAL_FEATURES`, `FORCE_ADAPTIVE` (forecasting experiments on by team decision) and `RW_ARTIFACTS_DIR`. The free Render tier sleeps when idle; the app shows a "Waking up the server…" screen with a retry. Set `DATABASE_URL` to PostgreSQL to keep data across redeploys. Test the suite against PostgreSQL with `./run.sh test-pg` (Docker) or an empty PostgreSQL database plus `python -m app.pipeline` and `pytest`.

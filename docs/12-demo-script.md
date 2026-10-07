@@ -31,3 +31,18 @@ Add a goal; add second income; trigger delay; add family member. Each should tak
 - LLM down → template summaries.
 - Network down → fully local run.
 - Live bug → pre-recorded 2-minute backup video.
+
+## Final build: judge path (5 minutes, rehearsed)
+Open the app a minute early so the free server is awake (the app shows "Waking up the server…" otherwise).
+1. Sign in as admin → Simulation sandbox → **Reset household**.
+2. Use the **Guided demo** (steps 1 to 5, also on the floating bar over the family app):
+   1. *Remittance arrives*: split pop-up. Say the AI suggests, the family decides.
+   2. *Accept allocation*: bills reserved first, goals funded.
+   3. *Unusual bill*: Payments shows a 2.4x electricity bill held for review.
+   4. *Warning*: a delayed transfer plus a medical emergency. Open the banner, point at the reasons and 🔊 read aloud.
+   5. *Resolution*: Plan screen, ask the sender to send earlier.
+3. Switch to **বাংলা** mid-demo: the same screens, Bangla text and Bangla read-aloud (needs a Bangla voice on the device).
+4. Admin → Model performance: warning before/after/hybrid table, **60/80/100% table with "Simulated, not measured"**, stress test, "The model serving the app".
+5. Say out loud: the OTP is simulated, micro-savings is off by default and saves only, the business KPIs are a simulated estimate.
+Extra scenarios to show in under 30 seconds each: Eid expense surge, Medical emergency, Systemic shock.
+Fallbacks: Waking screen has a retry; the Guided demo can be restarted with Reset household.

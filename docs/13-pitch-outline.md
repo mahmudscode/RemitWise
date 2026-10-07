@@ -18,3 +18,15 @@ Audience: technical, business and executive judges. Aim ~8 slides + live demo; a
 - One claim per slide, evidence on the slide.
 - Say what is assumed out loud; it builds credibility.
 - Map slides to judging criteria (doc 15).
+
+## Final build: "you told us X, we built Y"
+Open with the Phase 1 comments and the screen that answers each:
+- *Warning precision 0.72 vs rule 0.95* → threshold tuned on calibration data and a hybrid warning; show the before/after table and chart, state the precision trade-off openly.
+- *Show 60/80/100% and say it is simulated* → the side-by-side table with the banner.
+- *Concrete scenarios* → Eid surge, medical emergency, delayed transfer, systemic shock.
+- *Bangla, upay identity, faster first load, smooth demo path* → the toggle, brand colours, waking screen and Guided demo.
+- *Security and responsible AI* → OTP and password reset (simulated), data-retention policy and self-deletion, monitoring panel, security checks (basic, not a pentest).
+- *Innovation and business* → consent-based micro-savings (save, never invest), KPI view with editable assumptions, pilot plan.
+- *Scalability* → signed webhook adapter, load-test numbers (laptop, one worker), PostgreSQL run.
+Be upfront: several experiments (irregular-sender features, sequence models, per-household correction) did not improve accuracy on synthetic data; we show the result and say a pilot is the real test.
+Close: "These are our next phase, a controlled pilot with governed upay data."

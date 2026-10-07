@@ -24,3 +24,7 @@ services:
         sync: false        # password for the demo accounts
       - key: DATABASE_URL
         sync: false        # PostgreSQL URL: keeps accounts and data across redeploys
+      - key: OTP_DEMO_MODE
+        value: "true"      # simulated one-time codes shown on screen; no SMS is sent
+      - key: WEBHOOK_SECRET
+        sync: false        # optional: enables the signed transaction webhook

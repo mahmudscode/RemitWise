@@ -50,3 +50,6 @@ Status: **updated with team choices (PostgreSQL, Groq); rest still proposal.** T
 3. Bangla output quality on the chosen Groq model; English fallback if weak.
 4. Frontend: React vs Next.js; English only or Bangla too.
 5. Run PostgreSQL via Docker Compose or local install?
+
+## Final build additions
+Dictionary-based i18n (English and Bangla, Noto Sans Bengali), Web Speech API for read-aloud and voice questions, scikit-learn MLP for the sequence experiment, `pytest-cov` and `pip-audit` for checks, an asyncio + httpx load-test script, and `node --test` for the voice logic. Colours follow the upay palette sampled from the official logo (blue `#0d56a5`, yellow `#fcd704`).
