@@ -118,6 +118,15 @@ class OtpCode(Base):
     created_at = Column(DateTime, default=now)
 
 
+class WebhookEvent(Base):
+    """Idempotency record: an event id is applied at most once."""
+    __tablename__ = "webhook_events"
+    event_id = Column(String(64), primary_key=True)
+    type = Column(String(24))
+    household_id = Column(String(16), index=True)
+    received_at = Column(DateTime, default=now)
+
+
 class SummaryCache(Base):
     __tablename__ = "summary_cache"
     key = Column(String(120), primary_key=True)

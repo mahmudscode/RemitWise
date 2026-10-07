@@ -1040,7 +1040,7 @@ def _deps(dep, acc=None):
 
 
 PUBLIC = ("/api/health", "/api/auth/config", "/api/auth/register", "/api/auth/login", "/api/auth/reset/", "/api/evaluation",
-          "/api/compare", "/api/data-card")
+          "/api/compare", "/api/data-card", "/api/webhooks/")  # webhooks authenticate with an HMAC signature, tested separately
 
 
 def _fill(path, hid, sid=None):
@@ -1194,3 +1194,93 @@ def test_monitoring_flags_low_coverage(monkeypatch):
     out = monitoring.compute()
     flagged = [g for g in out["groups"] if g["group"] == "regular"][0]
     assert any("below 70%" in f for f in flagged["flags"]) and any("regular" in a for a in out["alerts"])
+
+
+# ---------- signed transaction webhooks ----------
+WH_SECRET = "test-webhook-secret"
+
+
+def _wh(client, event, secret=WH_SECRET, ts=None, sig=None, sign_it=True):
+    import hashlib, hmac, time
+    body = json.dumps(event).encode()
+    ts = int(time.time()) if ts is None else ts
+    headers = {"Content-Type": "application/json"}
+    if sign_it:
+        headers["X-RW-Timestamp"] = str(ts)
+        headers["X-RW-Signature"] = sig or hmac.new(secret.encode(), f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+    return client.post("/api/webhooks/transactions", content=body, headers=headers)
+
+
+@pytest.fixture
+def webhook_on(monkeypatch):
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", WH_SECRET)
+
+
+def _ev(hid, kind="remittance_received", amount=25000, eid=None, **kw):
+    import uuid
+    return dict(event_id=eid or f"evt-{uuid.uuid4().hex[:12]}", type=kind, household_id=hid, amount=amount, currency="BDT", **kw)
+
+
+def test_signed_remittance_event_updates_the_household(client, webhook_on):
+    hid = _hid(client)
+    client.post(f"/api/households/{hid}/reset", headers=H("admin", ""))
+    before = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert before["pending"] is None
+    r = _wh(client, _ev(hid, amount=31000))
+    assert r.status_code == 200 and r.json()["duplicate"] is False and r.json()["pending_plan"] is True
+    after = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert after["pending"]["amount"] == 31000  # the family now sees the split pop-up for the real transfer
+    assert any(e["type"] == "arrival" and e.get("source") == "webhook" for e in after["log"])
+    assert client.get(f"/api/households/{hid}/forecast", headers=H("family", hid)).status_code == 200
+
+
+def test_cash_out_and_bill_paid_events_move_money(client, webhook_on):
+    hid = _micro_house(client)
+    s0 = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert _wh(client, _ev(hid, "cash_out", 1000)).status_code == 200
+    s1 = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert s1["spendable"] == s0["spendable"] - 1000
+    due = [b for b in client.get(f"/api/households/{hid}/bills", headers=H("family", hid)).json()["items"] if b["display_status"] in ("scheduled", "at_risk")]
+    name = due[0]["name"]
+    r = _wh(client, _ev(hid, "bill_paid", due[0]["expected"], bill_name=name))
+    assert r.status_code == 200
+    s2 = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()
+    assert s2["bills_on_time"] == s1["bills_on_time"] + 1
+    assert _wh(client, _ev(hid, "bill_paid", 100, bill_name="No Such Bill")).status_code == 409
+
+
+def test_unsigned_badly_signed_stale_and_tampered_events_are_rejected(client, webhook_on):
+    import time
+    hid = _hid(client)
+    ev = _ev(hid, "cash_out", 500)
+    assert _wh(client, ev, sign_it=False).status_code == 401
+    assert _wh(client, ev, sig="0" * 64).status_code == 401
+    assert _wh(client, ev, secret="wrong-secret").status_code == 401
+    assert _wh(client, ev, ts=int(time.time()) - 3600).status_code == 401  # a captured request cannot be replayed later
+    import hashlib, hmac
+    ts = int(time.time())
+    body = json.dumps(ev).encode()
+    sig = hmac.new(WH_SECRET.encode(), f"{ts}.".encode() + body, hashlib.sha256).hexdigest()
+    tampered = json.dumps(dict(ev, amount=999999)).encode()
+    r = client.post("/api/webhooks/transactions", content=tampered, headers={"X-RW-Timestamp": str(ts), "X-RW-Signature": sig})
+    assert r.status_code == 401
+
+
+def test_replayed_event_id_is_applied_once(client, webhook_on):
+    hid = _micro_house(client)
+    ev = _ev(hid, "cash_out", 700)
+    s0 = client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()["spendable"]
+    assert _wh(client, ev).json()["duplicate"] is False
+    again = _wh(client, ev)
+    assert again.status_code == 200 and again.json()["duplicate"] is True
+    assert client.get(f"/api/households/{hid}/state", headers=H("family", hid)).json()["spendable"] == s0 - 700
+
+
+def test_webhook_validation_and_disabled_without_secret(client, monkeypatch):
+    hid = _hid(client)
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", "")
+    assert _wh(client, _ev(hid), sign_it=False).status_code == 503
+    monkeypatch.setattr(config, "WEBHOOK_SECRET", WH_SECRET)
+    assert _wh(client, _ev(hid, amount=-5)).status_code == 400
+    assert _wh(client, _ev(hid, "wire_fraud")).status_code == 400
+    assert _wh(client, _ev("H-NOPE")).status_code in (403, 404)

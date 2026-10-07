@@ -857,6 +857,50 @@ class Engine:
             raise ValueError("unknown scenario")
         return st
 
+    # ---------- external events (signed MFS webhooks) ----------
+    def apply_external(self, hid: str, st: dict, kind: str, amount: float, bill_name: str | None = None) -> dict:
+        """Turn a real wallet event into the same internal events the simulator produces."""
+        if kind == "remittance_received":
+            seq = st["last_seq"] + 1
+            if seq not in self.fc.get(hid, {}):
+                raise ValueError("no forecast exists for this household's next transfer")
+            if st["pending"]:
+                st = self.decide(hid, st, "skip", None)
+            a = sim.Account(spendable=st["spendable"], buffer=st["buffer"], goals=sum(st["goals"].values()), debt=st["debt"])
+            got = a.receive(amount)
+            st["debt"], st["spendable"] = a.debt, a.spendable
+            st["last_arrival_day"], st["last_seq"] = st["day"], seq
+            st["total_amt"] += amount
+            st["cycle_forecast"] = self.arrival_forecast(hid, seq)
+            st["sender_intent"], st["sender_ask"], st["adherent"] = None, False, False
+            st["pending"] = dict(seq=seq, amount=amount, got=got, day=st["day"], date=_d(st["day"]))
+            st["log"].append(dict(day=st["day"], type="arrival", amount=amount, source="webhook"))
+        elif kind == "cash_out":
+            a = sim.Account(spendable=st["spendable"], buffer=st["buffer"], debt=st["debt"])
+            a.spend_day(amount, 0.0)
+            st["spendable"], st["buffer"], st["debt"] = a.spendable, a.buffer, a.debt
+            st["log"].append(dict(day=st["day"], type="cash_out", amount=round(amount), source="webhook"))
+        elif kind == "bill_paid":
+            want = (bill_name or "").strip().lower()
+            for inst in self.instances(hid, st, st["day"] - 5, st["day"] + 35):
+                rec = st["bills"].get(inst["key"])
+                if inst["name"].lower() == want and (rec is None or rec["status"] in ("due", "needs_review", "overdue")):
+                    ok, _ = self._pay(st, amount, True)
+                    if not ok:  # the real wallet already paid it: take whatever the model holds
+                        st["spendable"] = max(st["spendable"] - amount, 0.0)
+                    st["bills_due"] += 1
+                    st["bills_on_time"] += 1
+                    st["bills"][inst["key"]] = dict(name=inst["name"], kind=inst["kind"], amount=amount, expected=inst["expected"],
+                                                    due_day=inst["due_day"], status="paid", via="external", day=st["day"])
+                    st["paid_log"] = (st["paid_log"] + [dict(day=st["day"], name=inst["name"], kind=inst["kind"], amount=amount)])[-80:]
+                    st["log"].append(dict(day=st["day"], type="bill_paid", name=inst["name"], amount=round(amount), source="webhook"))
+                    break
+            else:
+                raise ValueError("no open bill with that name")
+        else:
+            raise ValueError("unsupported event type")
+        return st
+
     # ---------- micro-savings: save, never invest ----------
     def _micro_pause_reason(self, hid: str, st: dict, short_today: bool) -> str | None:
         """Why micro-savings must not move money right now (None = all clear)."""

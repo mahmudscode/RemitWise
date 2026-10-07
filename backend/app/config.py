@@ -43,3 +43,7 @@ OTP_TTL_SECONDS = 300
 OTP_MAX_ATTEMPTS = 5
 OTP_MAX_REQUESTS = 3        # code requests per window, per account and purpose
 OTP_WINDOW_SECONDS = 600
+
+# Signed transaction webhooks (docs/09-api-contracts.md). The endpoint is disabled until a shared secret is set.
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+WEBHOOK_TOLERANCE_SECONDS = 300

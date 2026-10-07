@@ -999,6 +999,63 @@ def logout(authorization: str | None = Header(None)):
     return dict(ok=True)
 
 
+# ---------------- signed transaction webhooks (MFS core-banking adapter) ----------------
+class TxEvent(BaseModel):
+    event_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_\-.:]+$")
+    type: str = Field(pattern="^(remittance_received|cash_out|bill_paid)$")
+    household_id: str = Field(min_length=1, max_length=16)
+    amount: float = Field(gt=0, le=10_000_000)
+    currency: str = Field("BDT", pattern="^BDT$")
+    bill_name: str | None = Field(None, max_length=60)
+    occurred_at: str | None = Field(None, max_length=40)
+    reference: str | None = Field(None, max_length=64)
+
+
+def verify_webhook_signature(raw: bytes, timestamp: str | None, signature: str | None) -> None:
+    """Signature = hex HMAC-SHA256(secret, f"{timestamp}.{raw body}"). Rejects stale timestamps (replays)."""
+    import hashlib
+    import hmac
+    import time
+    if not config.WEBHOOK_SECRET:
+        raise HTTPException(503, "Webhooks are not enabled on this server.")
+    try:
+        ts = int(timestamp or "")
+    except ValueError:
+        raise HTTPException(401, "Invalid signature.")
+    if abs(time.time() - ts) > config.WEBHOOK_TOLERANCE_SECONDS:
+        raise HTTPException(401, "Invalid signature.")
+    expected = hmac.new(config.WEBHOOK_SECRET.encode(), f"{ts}.".encode() + raw, hashlib.sha256).hexdigest()
+    if not signature or not hmac.compare_digest(expected, signature.strip()):
+        raise HTTPException(401, "Invalid signature.")
+
+
+@app.post("/api/webhooks/transactions")
+async def transaction_webhook(request: Request, x_rw_signature: str | None = Header(None), x_rw_timestamp: str | None = Header(None)):
+    """Real MFS events (remittance received, cash-out, bill paid) in; the same internal events the simulator makes out."""
+    raw = await request.body()
+    verify_webhook_signature(raw, x_rw_timestamp, x_rw_signature)
+    try:
+        ev = TxEvent.model_validate_json(raw)
+    except Exception:
+        raise HTTPException(400, "Invalid event payload.")
+    _check(ev.household_id)
+    e = _eng()
+    with SessionLocal() as s:
+        if s.get(db.WebhookEvent, ev.event_id):
+            return dict(ok=True, duplicate=True, event_id=ev.event_id)
+    st = e.get(ev.household_id)
+    try:
+        st = e.apply_external(ev.household_id, st, ev.type, ev.amount, ev.bill_name)
+    except ValueError as ex:
+        raise HTTPException(409, str(ex))
+    e.save(ev.household_id, st)
+    with SessionLocal() as s:
+        s.add(db.WebhookEvent(event_id=ev.event_id, type=ev.type, household_id=ev.household_id))
+        s.commit()
+    db.audit("webhook", "tx_" + ev.type, ev.household_id, dict(event_id=ev.event_id, amount=ev.amount))
+    return dict(ok=True, duplicate=False, event_id=ev.event_id, pending_plan=bool(st["pending"]))
+
+
 # ---------------- phone OTP (simulated) and password reset ----------------
 class PhoneIn(BaseModel):
     phone: str = Field(max_length=24)
