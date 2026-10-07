@@ -6,7 +6,7 @@ Only start after Priority 1 is committed and the demo path is verified.
 ## Task 7 — Email security code and password reset (changed from phone to email)
 **Behaviour**
 - The code goes to the account's email address, not a phone number (the phone version was replaced). Existing databases are upgraded without data loss.
-- OTP request: 6-digit code, stored hashed, 5-minute expiry, max 5 attempts, rate-limited. The code is emailed when SMTP is configured; demo mode shows it on screen with the note "Demo mode: the code is shown here instead of being emailed".
+- OTP request: 6-digit code, stored hashed, 5-minute expiry, max 5 attempts, rate-limited. The code is emailed through SMTP and is not shown on screen (`OTP_DEMO_MODE` is off by default).
 - Verify marks the email address verified.
 - Password reset by email: request (OTP) then confirm (code + new password); confirm invalidates all existing sessions.
 - UI: "Verify your email" step after sign-up; "Forgot password?" on sign-in.

@@ -10,7 +10,7 @@ Every task from `REMITWISE_FINAL_DAY_UPDATES (2).md`, what exists, and where to 
 | 4 | Bangla toggle | Done | Sidebar, sign-in, sender view; Bangla summaries |
 | 5 | upay colours | Done | Palette sampled from the logo; AA contrast checked |
 | 6 | Faster load, guided demo | Done | Waking screen, skeletons, 5-step Guided demo (also floating bar) |
-| 7 | Security code and password reset | Done, **by email** (not phone). Really emailed when `SMTP_*` is set; on-screen in demo mode | Sign-up, forgot password, Goals; tests use a fake mail server |
+| 7 | Security code and password reset | Done, **by email** (not phone). Emailed through SMTP (`SMTP_*` in `.env`); never shown on screen unless `OTP_DEMO_MODE=true` | Sign-up, forgot password, Goals; tests use a fake mail server |
 | 8 | Micro-savings | Done | Goals card; pauses on risk; optional **simulated** yield pot with its own consent |
 | 9 | Not a budgeting app | Done | Home explainer; sign-in comparison |
 | 10 | Groq path and PostgreSQL | Done | Mocked-HTTP Groq tests; **full suite run on PostgreSQL 18.6** |
