@@ -19,7 +19,7 @@ export async function api(path, { method = 'GET', body, token: tokenOverride } =
   } catch {
     const e = new Error(BASE
       ? `Cannot reach the API at ${BASE}. Check that the backend is running, its /api/health works, and ALLOWED_ORIGINS includes this site.`
-      : 'No backend URL configured. Locally: run ./run.sh api (API on port 8000). On Vercel: set VITE_API_URL to your https backend URL and redeploy.')
+      : `Could not reach ${location.origin}/api. Locally: make sure ./run.sh api is running (port 8000) and open the app from http://localhost:5173, then reload this page. On Vercel: set VITE_API_URL to your https backend URL and redeploy.`)
     e.network = true
     throw e
   }
