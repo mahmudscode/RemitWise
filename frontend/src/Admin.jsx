@@ -179,6 +179,7 @@ function Model({ ev, comp, per, person }) {
       </section>
       <WarningTuning w={w} />
       {ev.stress && <StressTest st={ev.stress} />}
+      {ev.irregular_experiment && <IrregularExperiment x={ev.irregular_experiment} />}
       {ev.kpi_base && <Kpis ev={ev} />}
       <section className="card">
         <h2 style={{ marginBottom: 10 }}>Responsible AI checks</h2>
@@ -321,6 +322,20 @@ function Monitoring() {
       </div>
       <section className="card info small">{m.note} Irregular senders are the group to watch: the model is least certain about them, which is also why their ranges are wider.</section>
     </div>
+  )
+}
+
+function IrregularExperiment({ x }) {
+  const names = [['baseline', 'Current model'], ['regularity_features', '+ regularity features'], ['regularity_features_group_calibration', '+ regularity features and group calibration']]
+  return (
+    <section className="card" style={{ overflowX: 'auto' }}>
+      <div className="row between wrap"><h2>Experiment: better forecasts for irregular senders</h2><span className={`chip ${x.adopted ? 'green' : 'amber'}`}>{x.adopted ? 'Adopted' : 'Not adopted'}</span></div>
+      <p className="small muted" style={{ margin: '6px 0' }}>{x.description} Measured on the held-out test households.</p>
+      <table><thead><tr><th>Variant</th><th>Overall timing error</th><th>Overall coverage</th><th>Irregular timing error</th><th>Irregular coverage</th><th>Regular coverage</th></tr></thead>
+        <tbody>{names.map(([k, label]) => { const o = x[k].overall, i = x[k].by_regularity.irregular, r = x[k].by_regularity.regular
+          return <tr key={k}><td>{label}</td><td>{f1(o.gap_mae_model)} d</td><td>{pct(o.gap_coverage)}</td><td><b>{f1(i.gap_mae_model)} d</b></td><td>{pct(i.gap_coverage)}</td><td>{pct(r.gap_coverage)}</td></tr> })}</tbody></table>
+      <p className="small" style={{ marginTop: 8 }}><b>Result:</b> {x.reason} Irregular senders stay the hardest group to predict; their ranges are wider for that reason, and the fairness panel keeps watching them.</p>
+    </section>
   )
 }
 

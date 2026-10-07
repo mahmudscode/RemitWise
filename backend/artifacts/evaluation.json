@@ -945,6 +945,138 @@
     },
     "note": "The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance."
   },
+  "irregular_experiment": {
+    "baseline": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.029848375241116,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5802811682518364,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.8353502016868354,
+        "amt_coverage": 0.7979464613127979
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 13.727230796443445,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7554852549999646,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.7722342733188721,
+          "amt_coverage": 0.735357917570499
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.7502111839549848,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.08186281261082078,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.8933002481389578,
+          "amt_coverage": 0.8660049627791563
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.145529388941354,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.8001141207557894,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.8232876712328767,
+          "amt_coverage": 0.7801369863013699
+        }
+      }
+    },
+    "regularity_features": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.028720540540204,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5815726697564214,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.832049871653832,
+        "amt_coverage": 0.7873120645397873
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 13.718901518868444,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7550799696512689,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.7613882863340564,
+          "amt_coverage": 0.7266811279826464
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.749860627699686,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.08189147371114619,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.8945409429280397,
+          "amt_coverage": 0.8498759305210918
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.146246334197832,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.8026385456200974,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.8198630136986301,
+          "amt_coverage": 0.7719178082191781
+        }
+      }
+    },
+    "regularity_features_group_calibration": {
+      "overall": {
+        "n": 2727,
+        "gap_mae_model": 8.028720540540204,
+        "gap_mae_naive": 10.385405207187386,
+        "amt_mape_model": 0.5815726697564214,
+        "amt_mape_naive": 0.7951266002406128,
+        "gap_coverage": 0.8338833883388339,
+        "amt_coverage": 0.7986798679867987
+      },
+      "by_regularity": {
+        "irregular": {
+          "n": 461,
+          "gap_mae_model": 13.718901518868444,
+          "gap_mae_naive": 17.57700650759219,
+          "amt_mape_model": 0.7550799696512689,
+          "amt_mape_naive": 1.0317055710874652,
+          "gap_coverage": 0.7722342733188721,
+          "amt_coverage": 0.7462039045553145
+        },
+        "regular": {
+          "n": 806,
+          "gap_mae_model": 2.749860627699686,
+          "gap_mae_naive": 3.968982630272953,
+          "amt_mape_model": 0.08189147371114619,
+          "amt_mape_naive": 0.11845952497338805,
+          "gap_coverage": 0.8647642679900744,
+          "amt_coverage": 0.8337468982630273
+        },
+        "semi": {
+          "n": 1460,
+          "gap_mae_model": 9.146246334197832,
+          "gap_mae_naive": 11.656849315068493,
+          "amt_mape_model": 0.8026385456200974,
+          "amt_mape_naive": 1.0939832831892318,
+          "gap_coverage": 0.8363013698630137,
+          "amt_coverage": 0.7958904109589041
+        }
+      }
+    },
+    "adopted": false,
+    "checks": {
+      "overall_gap_mae_not_worse": true,
+      "overall_gap_coverage_not_worse": true,
+      "overall_amount_error_not_worse": true,
+      "overall_amount_coverage_not_worse": true,
+      "irregular_improves_materially": false
+    },
+    "description": "Adds sender-regularity features (gap variation over the last 6 transfers, longest recent gap, gap trend) and calibrates the range separately for senders who look regular / semi-regular / irregular in their own history.",
+    "reason": "Not adopted: irregular improves materially failed. The original forecaster is kept."
+  },
   "kpi_base": {
     "households": 100,
     "bills_per_household_month": 3.7,
@@ -1425,5 +1557,5 @@
     "gap": 0.8951623855519932,
     "amt": 0.015989243187499433
   },
-  "generated_at": "2026-10-07T10:05:07"
+  "generated_at": "2026-10-07T10:10:57"
 }

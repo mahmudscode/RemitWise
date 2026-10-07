@@ -225,6 +225,34 @@ def kpi_base(h, bdefs) -> dict:
                 monthly_remittance=round(float(monthly_remit.mean())), source="synthetic test households")
 
 
+def irregular_experiment(te: pd.DataFrame, h_test: pd.DataFrame, variants: dict) -> dict:
+    """Compare forecaster variants on the clean test households, overall and per sender-regularity group.
+    The new variant is adopted only if it does not make overall error or coverage worse AND helps irregular senders."""
+    res = {}
+    for name, fc in variants.items():
+        m = forecast_metrics(te, fc.predict(te), h_test)
+        res[name] = dict(overall=m["overall"], by_regularity=m["by_group"]["regularity"])
+    base, new = res["baseline"], res["regularity_features_group_calibration"]
+    nominal = config.INTERVAL_COVERAGE
+    off = lambda x: abs(x - nominal)
+    ob, on = base["overall"], new["overall"]
+    ib, i_n = base["by_regularity"]["irregular"], new["by_regularity"]["irregular"]
+    checks = dict(
+        overall_gap_mae_not_worse=bool(on["gap_mae_model"] <= ob["gap_mae_model"] + 1e-9),
+        overall_gap_coverage_not_worse=bool(off(on["gap_coverage"]) <= off(ob["gap_coverage"]) + 0.01),
+        overall_amount_error_not_worse=bool(on["amt_mape_model"] <= ob["amt_mape_model"] + 0.01),
+        overall_amount_coverage_not_worse=bool(off(on["amt_coverage"]) <= off(ob["amt_coverage"]) + 0.01),
+        irregular_improves_materially=bool(i_n["gap_mae_model"] <= ib["gap_mae_model"] - 0.25 or off(i_n["gap_coverage"]) <= off(ib["gap_coverage"]) - 0.02),  # a rounding-error gain does not count
+    )
+    adopted = all(checks.values())
+    res.update(adopted=adopted, checks=checks,
+               description="Adds sender-regularity features (gap variation over the last 6 transfers, longest recent gap, gap trend) and "
+                           "calibrates the range separately for senders who look regular / semi-regular / irregular in their own history.",
+               reason=("Adopted: overall error and coverage are no worse and irregular senders improve materially (0.25 days of error or 2 points of coverage)." if adopted else
+                       "Not adopted: " + ", ".join(k.replace("_", " ") for k, v in checks.items() if not v) + " failed. The original forecaster is kept."))
+    return res
+
+
 def forecast_samples(te: pd.DataFrame, P: pd.DataFrame, n: int = 60) -> list[dict]:
     """Forecast vs actual on the clean test set, model and naive side by side (for the judge chart)."""
     N = forecast.naive_forecast(te)

@@ -1284,3 +1284,35 @@ def test_webhook_validation_and_disabled_without_secret(client, monkeypatch):
     assert _wh(client, _ev(hid, amount=-5)).status_code == 400
     assert _wh(client, _ev(hid, "wire_fraud")).status_code == 400
     assert _wh(client, _ev("H-NOPE")).status_code in (403, 404)
+
+
+# ---------- irregular-sender experiment ----------
+def test_irregular_experiment_is_recorded_and_the_decision_follows_the_rules():
+    from app import forecast
+    x = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["irregular_experiment"]
+    assert {"baseline", "regularity_features", "regularity_features_group_calibration"} <= set(x)
+    assert x["adopted"] == all(x["checks"].values()) and x["reason"]
+    base, new = x["baseline"]["overall"], x["regularity_features_group_calibration"]["overall"]
+    if x["adopted"]:  # the change may only be kept if it does not make overall error or coverage worse
+        assert new["gap_mae_model"] <= base["gap_mae_model"] + 1e-9
+    loaded = forecast.Forecaster.load()
+    assert (loaded.group_conformal if hasattr(loaded, "group_conformal") else False) == x["adopted"]
+
+
+def test_regularity_features_and_group_calibration_work():
+    import numpy as np, pandas as pd
+    from app import forecast
+    hist = pd.DataFrame(dict(date=pd.date_range("2024-01-01", periods=9, freq="30D"), amount=np.linspace(20000, 30000, 9)))
+    hh = pd.Series(dict(local_income_monthly=8000, size=4, region="rural"))
+    f = forecast.row_features(hist, hh)
+    assert {"gap_cv6", "max_gap6", "gap_trend6"} <= set(f) and f["gap_cv6"] == 0 and f["max_gap6"] == 30
+    rng = np.random.default_rng(1)
+    n = 600
+    X = pd.DataFrame({c: rng.normal(size=n) for c in forecast.ALL_FEATURES})
+    X["gap_cv"] = rng.uniform(0.0, 0.6, n)
+    X["target_gap"] = 30 + 40 * X["gap_cv"] * rng.normal(size=n)
+    X["target_amt"] = np.exp(10 + 0.3 * rng.normal(size=n))
+    m = forecast.Forecaster(forecast.ALL_FEATURES, group_conformal=True).fit(X.iloc[:300], X.iloc[300:])
+    P = m.predict(X.iloc[300:])
+    assert (P.gap_p10 <= P.gap_p50).all() and (P.gap_p50 <= P.gap_p90).all()
+    assert len(set(np.round(m.conf_group["gap"], 3))) > 1  # noisier senders get wider ranges

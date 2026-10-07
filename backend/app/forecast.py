@@ -20,6 +20,9 @@ FEATURES = [
     "dom", "month", "days_to_eid", "eid_within_30", "n_events",
     "local_income_monthly", "size", "is_rural",
 ]
+# Sender-regularity features added by the irregular-sender experiment (Task 15)
+REGULARITY_FEATURES = ["gap_cv6", "max_gap6", "gap_trend6"]
+ALL_FEATURES = FEATURES + REGULARITY_FEATURES
 MODEL_PATH = config.ARTIFACTS / "forecaster.joblib"
 
 
@@ -37,7 +40,11 @@ def row_features(hist: pd.DataFrame, hh: pd.Series) -> dict:
     # Treat tiny top-up transfers separately: gaps use all events (model learns this noise).
     cur = dates.iloc[-1]
     med = np.median(gaps)
+    g6 = gaps[-6:]
+    trend = float(np.polyfit(np.arange(len(g6)), g6, 1)[0]) if len(g6) >= 3 else 0.0
     return dict(
+        gap_cv6=float(g6.std() / g6.mean()) if len(g6) > 1 and g6.mean() > 0 else 0.0,
+        max_gap6=float(g6.max()), gap_trend6=trend,
         last_gap=gaps[-1], gap_mean3=gaps[-3:].mean(), gap_mean_all=gaps.mean(),
         gap_std_all=gaps.std() if len(gaps) > 1 else 0.0,
         gap_cv=(gaps.std() / gaps.mean()) if len(gaps) > 1 else 0.0,
@@ -68,9 +75,16 @@ def build_dataset(households: pd.DataFrame, remittances: pd.DataFrame, min_hist:
 
 
 class Forecaster:
-    def __init__(self):
+    """`features` selects the inputs; `group_conformal` calibrates the range separately for senders who look
+    regular / semi-regular / irregular IN THEIR HISTORY (from gap_cv: never the hidden simulation label)."""
+
+    def __init__(self, features: list[str] | None = None, group_conformal: bool = False):
+        self.features = list(features or FEATURES)
+        self.group_conformal = group_conformal
         self.models: dict[str, dict[float, LGBMRegressor]] = {}
         self.conf: dict[str, float] = {}  # conformal widening per target
+        self.conf_group: dict[str, list[float]] = {}
+        self.cv_edges: list[float] = []
 
     def _fit_quantiles(self, X, y):
         out = {}
@@ -86,24 +100,37 @@ class Forecaster:
         P = np.column_stack([self.models[tgt][q].predict(X) for q in QUANTILES])
         return np.sort(P, axis=1)
 
+    def _group(self, X) -> np.ndarray:
+        return np.digitize(X["gap_cv"].to_numpy(float), self.cv_edges)
+
     def fit(self, train: pd.DataFrame, cal: pd.DataFrame):
-        Xt, Xc = train[FEATURES], cal[FEATURES]
+        Xt, Xc = train[self.features], cal[self.features]
         self.models["gap"] = self._fit_quantiles(Xt, train["target_gap"])
         self.models["amt"] = self._fit_quantiles(Xt, np.log(train["target_amt"]))
+        self.cv_edges = [float(x) for x in np.quantile(train["gap_cv"], [1 / 3, 2 / 3])]
+        grp = self._group(cal)
         # conformalized quantile regression (CQR) on the calibration households
         for tgt, y in (("gap", cal["target_gap"].to_numpy()), ("amt", np.log(cal["target_amt"].to_numpy()))):
             P = self._raw(tgt, Xc)
             score = np.maximum(P[:, 0] - y, y - P[:, 2])
-            n = len(score)
-            level = min(1.0, np.ceil((n + 1) * config.INTERVAL_COVERAGE) / n)
-            self.conf[tgt] = float(np.quantile(score, level))
+            def widen(sc):
+                level = min(1.0, np.ceil((len(sc) + 1) * config.INTERVAL_COVERAGE) / len(sc))
+                return float(np.quantile(sc, level))
+            self.conf[tgt] = widen(score)
+            self.conf_group[tgt] = [widen(score[grp == g]) if (grp == g).sum() >= 40 else self.conf[tgt] for g in range(3)]
         return self
 
     def predict(self, X: pd.DataFrame) -> pd.DataFrame:
-        X = X[FEATURES]
-        G = self._raw("gap", X)
-        A = self._raw("amt", X)
-        cg, ca = self.conf["gap"], self.conf["amt"]
+        feats = getattr(self, "features", FEATURES)
+        Xf = X[feats]
+        G = self._raw("gap", Xf)
+        A = self._raw("amt", Xf)
+        if getattr(self, "group_conformal", False):
+            grp = self._group(X)
+            cg = np.array(self.conf_group["gap"])[grp]
+            ca = np.array(self.conf_group["amt"])[grp]
+        else:
+            cg, ca = self.conf["gap"], self.conf["amt"]
         G = np.column_stack([np.maximum(G[:, 0] - cg, 1.0), G[:, 1], G[:, 2] + cg])
         A = np.exp(np.column_stack([A[:, 0] - ca, A[:, 1], A[:, 2] + ca]))
         return pd.DataFrame(dict(gap_p10=G[:, 0], gap_p50=G[:, 1], gap_p90=G[:, 2],
@@ -111,10 +138,11 @@ class Forecaster:
 
     def drivers(self, X: pd.DataFrame, top: int = 3) -> list[dict]:
         """Local feature contributions (LightGBM SHAP-style) for the median gap model; one row."""
+        feats = getattr(self, "features", FEATURES)
         m = self.models["gap"][0.5]
-        contrib = m.predict(X[FEATURES], pred_contrib=True)[0][:-1]
+        contrib = m.predict(X[feats], pred_contrib=True)[0][:-1]
         order = np.argsort(-np.abs(contrib))[:top]
-        return [dict(feature=FEATURES[i], value=float(X[FEATURES].iloc[0, i]),
+        return [dict(feature=feats[i], value=float(X[feats].iloc[0, i]),
                      effect_days=float(contrib[i])) for i in order]
 
     def save(self, path=MODEL_PATH):

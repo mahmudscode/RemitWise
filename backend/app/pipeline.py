@@ -25,7 +25,13 @@ def run():
           f"train/cal/test rows={len(tr)}/{len(ca)}/{len(te)}")
 
     print("2/6 training forecaster (LightGBM quantile + conformal) ...")
-    fc = forecast.Forecaster().fit(tr, ca)
+    fc_base = forecast.Forecaster().fit(tr, ca)
+    fc_feat = forecast.Forecaster(forecast.ALL_FEATURES).fit(tr, ca)
+    fc_new = forecast.Forecaster(forecast.ALL_FEATURES, group_conformal=True).fit(tr, ca)
+    exp = evaluation.irregular_experiment(te, h[h.split == "test"].reset_index(drop=True),
+                                          {"baseline": fc_base, "regularity_features": fc_feat, "regularity_features_group_calibration": fc_new})
+    fc = fc_new if exp["adopted"] else fc_base  # keep the change only if it does not hurt overall and helps irregular senders
+    print(f"   irregular-sender experiment: {exp['reason']}")
     fc.save()
     P_all = fc.predict(ds)
     P_all["household_id"] = ds["household_id"].to_numpy()
@@ -40,7 +46,7 @@ def run():
     db.write_frame(l, "ledger", index_cols=["household_id", "day"])
     db.write_frame(bdefs, "bill_defs", index_cols=["household_id"])
     db.write_frame(bsched, "bill_schedule", index_cols=["household_id", "due_day"])
-    feat = ds[["household_id", "seq"] + forecast.FEATURES]
+    feat = ds[["household_id", "seq"] + forecast.ALL_FEATURES]
     db.write_frame(feat, "forecast_features", index_cols=["household_id", "seq"])
     db.write_frame(P_all, "forecasts", index_cols=["household_id", "seq"])
 
@@ -65,7 +71,7 @@ def run():
         dataset=dict(households=len(h), remittances=len(r), ledger_rows=len(l), seed=config.SEED,
                      split_by="household", split_counts=h.split.value_counts().to_dict(),
                      start_date=config.START_DATE, days=config.N_DAYS),
-        forecast=dict(fm, samples=fs), warning=wm, stress=st_, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
+        forecast=dict(fm, samples=fs), warning=wm, stress=st_, irregular_experiment=exp, kpi_base=evaluation.kpi_base(h, bdefs), bills=bm,
         compare=dict(summary=cmp_["summary"], by_class=cmp_["by_class"], n_households=cmp_["n_households"],
                      horizon_days=cmp_["horizon_days"], metrics=cmp_["metrics"]),
         conformal=fc.conf,
