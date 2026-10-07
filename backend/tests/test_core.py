@@ -1573,3 +1573,15 @@ def test_overload_is_a_clean_503_not_a_crash(client, monkeypatch):
     assert r.status_code == 503 and r.headers["retry-after"] and "busy" in r.json()["detail"]
     monkeypatch.setattr(main.ENGINE, "get", lambda *a, **k: (_ for _ in ()).throw(TimeoutError("could not get lock hh:H1")))
     assert client.get(f"/api/households/{hid}/state", headers=H("family", hid)).status_code == 503
+
+
+def test_reset_without_email_setup_is_a_clear_503_and_never_locks_the_user_out(client, monkeypatch):
+    from app import auth
+    monkeypatch.setattr(config, "SMTP_HOST", "")
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", False)
+    auth._FAILS.clear()
+    for _ in range(auth.MAX_FAILS + 4):  # many retries, as a user who gets no email would make
+        r = client.post("/api/auth/reset/request", json=dict(email="someone@example.com"))
+        assert r.status_code == 503 and "not configured" in r.json()["detail"]
+    monkeypatch.setattr(config, "OTP_DEMO_MODE", True)  # once email works the same address is not blocked
+    assert client.post("/api/auth/reset/request", json=dict(email="someone@example.com")).status_code == 200

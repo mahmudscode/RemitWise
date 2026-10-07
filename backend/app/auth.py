@@ -77,13 +77,13 @@ def _key(email: str, client: str) -> str:
     return f"{email}|{client}"
 
 
-def check_rate(email: str, client: str):
+def check_rate(email: str, client: str, what: str = "sign-in"):
     q = _FAILS[_key(email, client)]
     now = time.time()
     while q and now - q[0] > WINDOW:
         q.popleft()
     if len(q) >= MAX_FAILS:
-        raise HTTPException(429, "Too many sign-in attempts. Please wait a few minutes and try again.")
+        raise HTTPException(429, f"Too many {what} attempts. Please wait a few minutes and try again.")
 
 
 def record_fail(email: str, client: str):

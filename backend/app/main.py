@@ -1213,9 +1213,12 @@ def otp_verify(body: CodeIn, authorization: str | None = Header(None)):
 @app.post("/api/auth/reset/request")
 def reset_request(body: ResetRequestIn, request: Request):
     """Same answer whether or not the account exists, so this cannot be used to discover accounts."""
+    from . import mailer
+    if not mailer.configured() and not config.OTP_DEMO_MODE:  # nothing can be sent: say so, and do not count it as an attempt
+        raise HTTPException(503, "Email delivery is not configured on this server, so a reset code cannot be sent. Ask the administrator to set up email (SMTP).")
     ident = body.email.strip().lower()
-    auth.check_rate("reset:" + ident, _client(request))
-    auth.record_fail("reset:" + ident, _client(request))  # every request counts toward the sign-in style limit
+    auth.check_rate("reset:" + ident, _client(request), "password-reset")
+    auth.record_fail("reset:" + ident, _client(request))  # every request counts toward the limit
     auth.limit_otp_requests("reset-req:" + ident)  # identical limit for real and unknown addresses
     u = auth.find_for_reset(ident)
     code = f"{secrets.randbelow(10**6):06d}"  # unknown addresses get a lookalike code that never works
@@ -1250,7 +1253,7 @@ def _deliver_dummy(email: str, code: str) -> dict:
 def reset_confirm(body: ResetConfirmIn, request: Request):
     ident = body.email.strip().lower()
     key = "reset-confirm:" + ident
-    auth.check_rate(key, _client(request))
+    auth.check_rate(key, _client(request), "password-reset")
     u = auth.find_for_reset(ident)
     if u is None:
         auth.record_fail(key, _client(request))
