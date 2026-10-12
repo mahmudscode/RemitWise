@@ -350,6 +350,5 @@ Full task-by-task status with evidence: [docs/phase2/09-status-and-evidence.md](
 
 ## 15. Team
 
-**Matrix Miners:** MD Mahmudur Rahman Supto, Sk Abu Sayeed, Shoukhinuzzaman Aditto.
+**Matrix Miners:** MD Mahmudur Rahman Supto,
 
-Built for the AI Hackathon 2026, organised by DIU CPC with upay. RemitWise is a hackathon prototype: no real money, customer data or banking is involved.
