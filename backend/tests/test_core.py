@@ -1599,3 +1599,24 @@ def test_reset_without_email_setup_is_a_clear_503_and_never_locks_the_user_out(c
     monkeypatch.setattr(config, "OTP_DEMO_MODE", True)  # once email works the same address is not blocked by the earlier tries
     after = client.post("/api/auth/reset/request", json=dict(email="someone@example.com"))
     assert after.status_code == 404 and "No account" in after.json()["detail"]  # (an honest answer in demo mode, not a rate limit)
+
+
+def test_shock_adjust_moves_and_widens_only_after_consecutive_misses():
+    from app import forecast
+    base = dict(gap_p10=20, gap_p50=30, gap_p90=40, amt_p10=80, amt_p50=100, amt_p90=120)
+    ok = dict(base, gap=31, amt=100)
+    late = dict(base, gap=52, amt=100)
+    assert not forecast.shock_adjust([late, ok])["active"]  # an on-target transfer ends the run
+    adj = forecast.shock_adjust([ok, late])
+    assert adj["active"] and adj["gap_shift"] == 22
+    fc = forecast.apply_shock(base | {}, adj)
+    assert fc["gap_p50"] == 52 and fc["gap_p90"] == 62 and fc["gap_p10"] == 31 and fc["amt_p50"] == 100
+    small = dict(base, gap=31, amt=50)
+    assert forecast.shock_adjust([small])["amt_ratio"] == 1.0  # one small transfer is noise
+    assert forecast.shock_adjust([small, small])["amt_ratio"] == 0.5
+
+
+def test_stress_test_shows_shock_aware_ranges_recover_coverage():
+    f = json.loads((config.ARTIFACTS / "evaluation.json").read_text())["stress"]["forecast"]
+    assert f["shock_aware"]["gap_coverage"] > f["shock"]["gap_coverage"] + 0.2
+    assert f["shock_aware_normal"]["gap_coverage"] >= f["normal"]["gap_coverage"] - 0.03

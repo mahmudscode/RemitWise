@@ -7,3 +7,4 @@ backend/artifacts/*.db
 backend/artifacts/*.joblib
 frontend/dist/
 .pytest_cache/
+.coverage

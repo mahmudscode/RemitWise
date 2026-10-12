@@ -207,6 +207,20 @@ def stress_test(h, r, l, te, P_te, P_all_df, bmaps, threshold: float) -> dict:
                     gap_mae=round(float(np.abs(P.gap_p50 - g).mean()), 2),
                     gap_coverage=round(float(((g >= P.gap_p10) & (g <= P.gap_p90)).mean()), 3),
                     amt_coverage=round(float(((a >= P.amt_p10) & (a <= P.amt_p90)).mean()), 3))
+    # same shock, but each range is first corrected by the household's own recent misses (what the live app does)
+    def aware(gap_add, amt_mult):
+        rows, hist = [], {}
+        for _, w in win.sort_values(["household_id", "seq"]).iterrows():
+            q = P.loc[w.name]
+            raw = {c: float(q[c]) for c in ("gap_p10", "gap_p50", "gap_p90", "amt_p10", "amt_p50", "amt_p90")}
+            past = hist.setdefault(w.household_id, [])
+            fc = forecast.apply_shock(raw, forecast.shock_adjust(past))
+            g, a = w.target_gap + gap_add, w.target_amt * amt_mult
+            past.append(dict(gap=g, amt=a, **raw))
+            rows.append((abs(fc["gap_p50"] - g), fc["gap_p10"] <= g <= fc["gap_p90"], fc["amt_p10"] <= a <= fc["amt_p90"]))
+        m = np.array(rows, dtype=float)
+        return dict(n=len(rows), gap_mae=round(float(m[:, 0].mean()), 2), gap_coverage=round(float(m[:, 1].mean()), 3),
+                    amt_coverage=round(float(m[:, 2].mean()), 3))
     P_all = {}
     for hid, g in P_all_df.groupby("household_id"):
         P_all[hid] = {int(rw["seq"]): rw for rw in g.to_dict("records")}
@@ -219,7 +233,8 @@ def stress_test(h, r, l, te, P_te, P_all_df, bmaps, threshold: float) -> dict:
         out[name] = _prf(ck, (ck.prob >= threshold) | ck.naive_warn)  # same hybrid warning as the live app
     return dict(
         description=f"Three consecutive transfers (from transfer {SHOCK_START_SEQ}) arrive {SHOCK_DELAY_DAYS} days later each and {int(SHOCK_AMOUNT_CUT * 100)}% smaller.",
-        threshold=threshold, forecast=dict(normal=cov(0, 1.0), shock=cov(SHOCK_DELAY_DAYS, 1 - SHOCK_AMOUNT_CUT)),
+        threshold=threshold, forecast=dict(normal=cov(0, 1.0), shock=cov(SHOCK_DELAY_DAYS, 1 - SHOCK_AMOUNT_CUT),
+                      shock_aware_normal=aware(0, 1.0), shock_aware=aware(SHOCK_DELAY_DAYS, 1 - SHOCK_AMOUNT_CUT)),
         warning=out,
         note="The forecaster was not trained on shocks. Protection comes from the rule that widens the range when a transfer is overdue, and from warnings that read the live balance.")
 

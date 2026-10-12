@@ -96,6 +96,15 @@ class Engine:
                 act.append(float(day[k + 1] - day[k]))
         return forecast.adaptive_bias(pred, act, self.adapt["alpha"], self.adapt["shrink"], self.adapt["cap"]), len(act)
 
+    def _resolved(self, hid: str, seq: int) -> list[dict]:
+        """Earlier forecasts whose outcome is already known at arrival `seq`, oldest first, with what actually happened."""
+        ev = self.ev[hid]
+        day = dict(zip(ev.seq.astype(int), ev.day.astype(int)))
+        amt = dict(zip(ev.seq.astype(int), ev.amount.astype(float)))
+        cols = ("gap_p10", "gap_p50", "gap_p90", "amt_p10", "amt_p50", "amt_p90")
+        return [dict(gap=float(day[k + 1] - day[k]), amt=amt[k + 1], **{c: float(self.fc[hid][k][c]) for c in cols})
+                for k in sorted(self.fc.get(hid, {})) if k + 1 <= seq and k in day and k + 1 in day]
+
     def default_sender_name(self, hid: str) -> str:
         ids = list(self.demo_ids)
         return self._senders[ids.index(hid) % 3] if hid in ids else "your sender"
@@ -481,6 +490,9 @@ class Engine:
         if r is None:
             return None
         out = {k: float(r[k]) for k in ("gap_p10", "gap_p50", "gap_p90", "amt_p10", "amt_p50", "amt_p90")}
+        adj = forecast.shock_adjust(self._resolved(hid, seq))
+        if adj["active"]:  # recent transfers missed their stated ranges: shift and widen (replaces the gentler bias nudge)
+            return forecast.apply_shock(out, adj)
         bias, n = self.adaptive_bias(hid, seq)
         if n:
             for c in ("gap_p10", "gap_p50", "gap_p90"):

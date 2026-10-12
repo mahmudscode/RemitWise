@@ -200,3 +200,44 @@ def remaining_forecast(fc: dict, days_since: float) -> dict:
         overdue = True
     r10, r50, r90 = sorted([r10, r50, r90])
     return dict(rem_p10=r10, rem_p50=r50, rem_p90=r90, overdue=overdue)
+
+
+def shock_adjust(past: list[dict], max_run: int = 3) -> dict:
+    """Shock detector from a household's own recent misses (needs no shock training data).
+
+    `past` is oldest-to-newest, one dict per already-resolved transfer with the range that was stated for it
+    (gap_p10/p50/p90, amt_p10/p50/p90) and what happened (gap, amt). Only the trailing run of consecutive misses counts:
+    a transfer later than its p90 (or smaller than its p10) is a miss; one on-target transfer ends the run.
+    Returns the days to add to the next gap range and the factor to apply to the next amount range.
+    """
+    late, low = [], []
+    for p in reversed(past):
+        if p["gap"] > p["gap_p90"]:
+            late.append(p["gap"] - p["gap_p50"])
+        else:
+            break
+    for p in reversed(past):
+        if p["amt"] < p["amt_p10"]:
+            low.append(p["amt"] / p["amt_p50"])
+        else:
+            break
+    shift = float(np.mean(late[:max_run])) if late else 0.0
+    ratio = float(np.clip(np.mean(low[:max_run]), 0.3, 1.0)) if len(low) >= 2 else 1.0  # one small transfer is normal noise
+    return dict(gap_shift=shift, amt_ratio=ratio, active=bool(late or ratio < 1.0))
+
+
+def apply_shock(fc: dict, adj: dict) -> dict:
+    """Move and widen a forecast after a detected shock: the middle follows the shift, the upper end moves with it,
+    and the lower end moves half as far, so the range grows instead of just sliding."""
+    if not adj["active"]:
+        return fc
+    out = dict(fc)
+    s = adj["gap_shift"]
+    out["gap_p10"] = max(fc["gap_p10"] + 0.5 * s, 1.0)
+    out["gap_p50"] = max(fc["gap_p50"] + s, 1.0)
+    out["gap_p90"] = max(fc["gap_p90"] + s, out["gap_p50"] + 1.0)
+    for c in ("amt_p10", "amt_p50", "amt_p90"):
+        out[c] = fc[c] * adj["amt_ratio"]
+    out["shock_shift_days"] = round(s, 1)
+    out["shock_amount_ratio"] = round(adj["amt_ratio"], 2)
+    return out

@@ -114,14 +114,14 @@ The model alone, tuned for precision, loses to the simple rule on both precision
 
 **Stress test: systemic shock** (three consecutive transfers 21 days later each and 30% smaller)
 
-| | Normal | Under shock |
-|---|---|---|
-| Timing error | 8.0 days | 20.9 days |
-| Timing range coverage (target 80%) | 83% | 26% |
-| Warning precision / recall | 0.88 / 0.57 | 1.00 / 0.78 |
-| Average notice | 4.3 days | 2.2 days |
+| | Normal | Under shock | Under shock, with shock detection |
+|---|---|---|---|
+| Timing error | 7.9 days | 20.9 days | 15.2 days |
+| Timing range coverage (target 80%) | 82% | 27% | 63% |
+| Warning precision / recall | 0.88 / 0.57 | 0.99 / 0.78 | (unchanged: reads the live balance) |
+| Average notice | 4.4 days | 2.1 days | (unchanged) |
 
-The forecaster was never trained on shocks, so its ranges lose most of their coverage. Warnings still fire because they read the live balance, but give less notice.
+The forecaster was never trained on shocks, so its raw ranges lose most of their coverage. A shock detector now looks at each household's own recent transfers: when the latest ones landed outside the stated range, the next range is shifted and widened (and the amount range scaled down after two small transfers in a row). It needs no shock training data and lifts coverage from 27% to 63%, at a cost of about 0.6 days of timing error and 1 point of coverage in normal times. It cannot help the first shocked transfer, because nothing has been missed yet, so coverage under shock is still below the 80% target. Warnings still fire because they read the live balance, but give less notice.
 
 **Load and concurrency** (one laptop; client, server and database share it; see [docs/load-test-results.md](docs/load-test-results.md))
 
@@ -299,7 +299,7 @@ Guides: [docs/19-deployment.md](docs/19-deployment.md), [docs/production-deploym
 - Security codes are shown on screen in demo mode; real email is implemented and tested against a fake mail server but **never tried against a real mail provider** from the development machine.
 - The Groq call has **not been run against the real service** (no API key).
 - PostgreSQL was verified locally and in a 4-worker load test, **not on a hosted or production-scale database**. Load tests ran on one laptop. Rate limits are per process.
-- The forecasting experiments **did not improve accuracy**; they are on by team decision and their measured effect is shown, not hidden. The model is not robust to systemic shocks (coverage falls to 26%).
+- The forecasting experiments **did not improve accuracy**; they are on by team decision and their measured effect is shown, not hidden. Under a systemic shock, range coverage falls to 27% and recovers only to 63% with the shock detector (the first shocked transfer cannot be caught).
 - Tokens are kept in `localStorage`; there is no multi-factor login and no independent penetration test.
 - Voice output and microphone input depend on the device (a Bangla voice is needed for Bangla read-aloud).
 
